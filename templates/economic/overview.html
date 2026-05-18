@@ -1,0 +1,226 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="overview-grid">
+        <!-- Main Economic Indicators -->
+        <div class="glass-card eco-card">
+            <div class="eco-header">
+                <i class="material-icons-round" style="color: #ef4444;">show_chart</i>
+                <div class="eco-title">
+                    <span>Inflasi Nasional</span>
+                    <h3>{{ latest.inflation_rate if latest else '3.5' }}%</h3>
+                </div>
+            </div>
+            <div class="eco-trend">
+                <span class="trend-down">-0.2% dari bln lalu</span>
+            </div>
+            <a href="{{ url_for('economic.inflation') }}" class="eco-link">Lihat Detail <i class="material-icons-round">chevron_right</i></a>
+        </div>
+
+        <div class="glass-card eco-card">
+            <div class="eco-header">
+                <i class="material-icons-round" style="color: var(--primary-red);">account_balance</i>
+                <div class="eco-title">
+                    <span>BI 7-Day Repo Rate</span>
+                    <h3>{{ latest.bi_rate if latest else '6.25' }}%</h3>
+                </div>
+            </div>
+            <div class="eco-trend">
+                <span class="trend-neutral">Tetap</span>
+            </div>
+            <a href="{{ url_for('economic.bi_rate') }}" class="eco-link">Lihat Detail <i class="material-icons-round">chevron_right</i></a>
+        </div>
+
+        <div class="glass-card eco-card">
+            <div class="eco-header">
+                <i class="material-icons-round" style="color: #10b981;">currency_exchange</i>
+                <div class="eco-title">
+                    <span>Kurs JISDOR (USD)</span>
+                    <h3>Rp {{ "{:,.0f}".format(latest.usd_idr).replace(',', '.') if latest else '16.100' }}</h3>
+                </div>
+            </div>
+            <div class="eco-trend">
+                <span class="trend-up">+Rp 50</span>
+            </div>
+            <a href="{{ url_for('economic.jisdor') }}" class="eco-link">Lihat Detail <i class="material-icons-round">chevron_right</i></a>
+        </div>
+
+        <div class="glass-card eco-card">
+            <div class="eco-header">
+                <i class="material-icons-round" style="color: #f59e0b;">fec_standard</i>
+                <div class="eco-title">
+                    <span>Rata-rata UMR (Jateng)</span>
+                    <h3>Rp {{ "{:,.0f}".format(umr_list[0].umr).replace(',', '.') if umr_list else '2.300.000' }}</h3>
+                </div>
+            </div>
+            <div class="eco-trend">
+                <span class="trend-neutral">Tahun 2024</span>
+            </div>
+            <a href="{{ url_for('economic.umr_data') }}" class="eco-link">Lihat Detail <i class="material-icons-round">chevron_right</i></a>
+        </div>
+    </div>
+
+    <!-- UMR Section -->
+    <div class="glass-card table-section" style="margin-top: 25px; padding: 25px;">
+        <div class="table-header">
+            <h3>Ranking UMR Jawa Tengah</h3>
+        </div>
+        <div class="umr-summary-grid">
+            {% for item in umr_list[:4] %}
+            <div class="umr-mini-item">
+                <span class="city">{{ item.city }}</span>
+                <span class="val">Rp {{ "{:,.0f}".format(item.umr).replace(',', '.') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Comprehensive Data Table -->
+    <div class="ent-table-container" style="margin-top: 25px; padding: 0; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+        <div class="ent-table-header" style="padding: 25px 30px; border-bottom: 1px solid #f3efec;">
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Tabel Indikator Ekonomi Lengkap</h3>
+        </div>
+        <div class="ent-table-wrapper">
+            <table class="ent-table">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th style="text-align: center;">Inflasi (%)</th>
+                        <th style="text-align: center;">BI Rate (%)</th>
+                        <th style="text-align: right;">Kurs JISDOR (USD)</th>
+                        <th style="text-align: center;">Sumber</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in all_data %}
+                    <tr>
+                        <td style="font-weight: 600;">{{ item.date.strftime('%d %b %Y') }}</td>
+                        <td style="text-align: center; font-weight: 800; color: #ef4444;">{{ item.inflation_rate }}%</td>
+                        <td style="text-align: center; font-weight: 800; color: #6e0b0b;">{{ item.bi_rate }}%</td>
+                        <td style="text-align: right; font-weight: 800; color: #22c55e;">Rp {{ "{:,.0f}".format(item.usd_idr).replace(',', '.') }}</td>
+                        <td style="text-align: center;"><span style="font-size: 11px; background: #f3f3f3; padding: 4px 10px; border-radius: 6px; font-weight: 700;">{{ item.source }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- External Source Info -->
+    <div class="glass-card source-panel" style="margin-top: 25px;">
+        <div class="source-info">
+            <i class="material-icons-round">info</i>
+            <p>Data ekonomi ini diintegrasikan secara berkala dari <strong>BI.go.id</strong> dan <strong>API BPS Nasional</strong>. Data ini digunakan untuk memberikan konteks eksternal terhadap stabilitas finansial anggota koperasi.</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .glass-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+    }
+
+    .overview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 25px;
+    }
+
+    .eco-card {
+        background: #6e0b0b !important;
+        border: none !important;
+        color: white !important;
+        padding: 25px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(110, 11, 11, 0.15) !important;
+    }
+
+    .eco-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(110, 11, 11, 0.3) !important;
+    }
+
+    .eco-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .eco-header i {
+        background: rgba(255, 255, 255, 0.15);
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white !important;
+        font-size: 24px;
+    }
+
+    .eco-title span {
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 0.85rem;
+    }
+
+    .eco-title h3 {
+        color: white !important;
+        margin: 5px 0 0 0;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+    }
+
+    .eco-trend {
+        margin-bottom: 20px;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .eco-card .trend-up,
+    .eco-card .trend-down,
+    .eco-card .trend-neutral {
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    .eco-link {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        text-decoration: none;
+        color: white !important;
+        font-size: 0.9rem;
+        font-weight: 700;
+        opacity: 0.9;
+        transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .eco-link:hover {
+        transform: translateX(5px);
+        opacity: 1;
+    }
+
+    .source-panel { padding: 20px; background: rgba(110, 11, 11, 0.05); border: 1px solid rgba(110, 11, 11, 0.1); }
+    .source-info { display: flex; align-items: center; gap: 15px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+    .source-info i { color: var(--primary-red); }
+
+    .source-tag { font-size: 0.75rem; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; }
+
+    /* UMR Summary */
+    .umr-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+    .umr-mini-item { display: flex; flex-direction: column; padding: 12px; background: var(--input-bg); border-radius: 8px; border-left: 3px solid var(--primary-red); }
+    .umr-mini-item .city { font-size: 0.8rem; color: var(--text-muted); }
+    .umr-mini-item .val { font-size: 1rem; font-weight: 700; color: var(--text-main); margin-top: 4px; }
+</style>
+{% endblock %}

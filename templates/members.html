@@ -1,0 +1,244 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'members' %}
+{% set page_title = 'Daftar Anggota' %}
+
+{% block extra_css %}
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 35px;
+}
+.stat-card {
+    background: var(--card-bg);
+    padding: 30px 25px;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+.stat-card.dark { background: var(--ent-primary); color: white; }
+.stat-label { font-size: 0.75rem; font-weight: 700; opacity: 0.7; text-transform: uppercase; margin-bottom: 12px; }
+.stat-value { font-size: 2.25rem; font-weight: 800; }
+
+.member-avatar-cell {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+}
+
+.status-pill { 
+    padding: 6px 12px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; 
+    text-transform: uppercase; display: inline-flex; align-items: center; gap: 5px;
+}
+.status-aktif { background: #e8f8f0; color: #27ae60; border: 1px solid #d4efdf; }
+.status-tidak-aktif { background: #fee2e2; color: #ef4444; border: 1px solid #fecaca; }
+
+.jabatan-pill {
+    background: #fff5f5; color: #6e0b0b; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.75rem;
+}
+
+.member-name-stack { display: flex; flex-direction: column; }
+.member-primary-name { font-weight: 700; color: #111; font-size: 0.9rem; }
+.member-sub-email { font-size: 0.75rem; color: #888; font-weight: 500; }
+
+.search-container-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: #fff;
+    padding: 25px 30px;
+    border-bottom: 1px solid #eee;
+}
+.main-title { font-size: 1.5rem; font-weight: 800; color: #6e0b0b; margin: 0; }
+.header-search-box {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+.header-search-box input {
+    width: 100%;
+    padding: 12px 20px 12px 45px;
+    border: 2px solid #eee;
+    border-radius: 15px;
+    font-weight: 600;
+    outline: none;
+    transition: all 0.2s;
+}
+.header-search-box input:focus { border-color: #6e0b0b; }
+.header-search-box i { position: absolute; left: 15px; top: 13px; color: #aaa; }
+
+.header-actions { display: flex; gap: 12px; margin-left: auto; }
+.btn-header-action {
+    display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 12px;
+    background: #fff; border: 1px solid #eee; color: #444; font-weight: 700; font-size: 0.85rem;
+    text-decoration: none; cursor: pointer; transition: all 0.2s;
+}
+.btn-header-action:hover { background: #f9f9f9; border-color: #ddd; }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+
+<div class="stats-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 35px;">
+  <div class="stat-card" style="background: #6e0b0b; padding: 35px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="background: rgba(255,255,255,0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+      <i class="material-icons-round">group</i>
+    </div>
+    <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px;">Total Seluruh Anggota</div>
+    <div style="font-size: 2.2rem; font-weight: 800; margin: 10px 0;">{{ total_count }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.7;">↑ Pertumbuhan 12%</div>
+  </div>
+
+  <div class="stat-card" style="background: #6e0b0b; padding: 35px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="background: rgba(255,255,255,0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+      <i class="material-icons-round">check_circle</i>
+    </div>
+    <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px;">Anggota Aktif</div>
+    <div style="font-size: 2.2rem; font-weight: 800; margin: 10px 0;">{{ active_count }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.7;">{{ "%.1f"|format(active_count/total_count*100) if total_count > 0 else 0 }}% aktif</div>
+  </div>
+
+  <a href="/registration" style="text-decoration: none;">
+    <div class="stat-card" style="background: #6e0b0b; padding: 35px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <div style="background: rgba(255,255,255,0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+        <i class="material-icons-round">history</i>
+      </div>
+      <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px;">Menunggu Verifikasi</div>
+      <div style="font-size: 2.2rem; font-weight: 800; margin: 10px 0;">{{ pending_count }}</div>
+      <div style="font-size: 0.75rem; opacity: 0.7;">Butuh persetujuan</div>
+    </div>
+  </a>
+
+  <div class="stat-card" style="background: #6e0b0b; padding: 35px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <div style="background: rgba(255,255,255,0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+      <i class="material-icons-round">star</i>
+    </div>
+    <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px;">Skor Kepercayaan</div>
+    <div style="font-size: 2.2rem; font-weight: 800; margin: 10px 0;">9.8</div>
+    <div style="font-size: 0.75rem; opacity: 0.7;">Rating Sangat Baik</div>
+  </div>
+</div>
+
+<div class="ent-table-container">
+  <div class="search-container-header">
+    <h1 class="main-title">Daftar Anggota</h1>
+    <div class="header-search-box">
+      <i class="material-icons-round">search</i>
+      <input type="text" id="member-search" value="{{ search_query or '' }}" placeholder="Cari nama, ID, atau email...">
+    </div>
+    <div class="header-actions">
+      <a href="/members/export_all_savings" class="btn-header-action">
+        <i class="material-icons-round" style="font-size: 18px;">download</i> Ekspor Daftar
+      </a>
+      <div class="btn-header-action">
+        <i class="material-icons-round" style="font-size: 18px;">filter_list</i> Filter Status
+      </div>
+    </div>
+  </div>
+
+  <div class="ent-table-wrapper">
+    <table class="ent-table" id="member-table">
+      <thead>
+        <tr>
+          <th style="width: 50px; text-align: center;">NO</th>
+          <th style="width: 120px;">BERGABUNG</th>
+          <th style="width: 140px;">ID ANGGOTA</th>
+          <th>NAMA LENGKAP</th>
+          <th style="width: 80px; text-align: center;">PAS FOTO</th>
+          <th style="width: 120px;">JABATAN</th>
+          <th style="width: 120px;">JENIS KELAMIN</th>
+          <th style="width: 150px;">KONTAK</th>
+          <th style="width: 150px; text-align: right;">LIMIT</th>
+          <th style="width: 120px; text-align: center;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+        <tr ondblclick="openMemberDetailModal('{{ member.id }}')" style="cursor: pointer;">
+          <td style="text-align: center; font-weight: 800; color: #6e0b0b;">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+          <td style="color: #888; font-size: 0.85rem; font-weight: 600;">{{ member.date_joined.strftime('%Y-%m-%d') if member.date_joined else '-' }}</td>
+          <td style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #6e0b0b;">{{ member.member_no }}</td>
+          <td>
+            <div class="member-name-stack">
+              <span class="member-primary-name">{{ member.full_name }}</span>
+              <span class="member-sub-email">{{ member.email }}</span>
+            </div>
+          </td>
+          <td>
+            <div style="display: flex; justify-content: center;">
+              <div class="member-avatar-cell">
+                <i class="material-icons-round" style="font-size: 20px;">person</i>
+              </div>
+            </div>
+          </td>
+          <td><span class="jabatan-pill">{{ member.jabatan or 'Staff' }}</span></td>
+          <td style="font-weight: 600; color: #555;">{{ member.gender or '-' }}</td>
+          <td style="font-weight: 600; font-size: 0.85rem;">{{ member.phone or '-' }}</td>
+          <td class="amount">Rp {{ "{:,.0f}".format(member.loan_limit).replace(',', '.') if member.loan_limit > 0 else 'Unlimited' }}</td>
+          <td style="text-align: center;">
+            {% set s_status = member.status.upper() if member.status else 'TIDAK AKTIF' %}
+            <span class="status-pill status-{{ 'aktif' if s_status == 'AKTIF' else 'tidak-aktif' }}">
+              <i class="material-icons-round" style="font-size: 8px;">circle</i>
+              {{ s_status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ent-pagination">
+    <div style="font-size: 0.85rem; color: #777;">
+      Showing {{ (pagination.page - 1) * pagination.per_page + 1 }} - {{ [pagination.page * pagination.per_page, pagination.total]|min }} of {{ pagination.total }}
+    </div>
+    <div class="ent-page-indicators" style="display: flex; gap: 8px; align-items: center;">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('auth.members', page=pagination.prev_num, search=search_query) }}" class="ent-btn-page" style="text-decoration: none;">Prev</a>
+      {% else %}
+      <button class="ent-btn-page" disabled>Prev</button>
+      {% endif %}
+
+      <div style="display: flex; gap: 4px;">
+        {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+          {% if page_num %}
+            <a href="{{ url_for('auth.members', page=page_num, search=search_query) }}" 
+               class="ent-page-num {{ 'active' if page_num == pagination.page else '' }}"
+               style="text-decoration: none;">
+              {{ page_num }}
+            </a>
+          {% else %}
+            <span style="padding: 0 10px; color: #ccc;">...</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      {% if pagination.has_next %}
+      <a href="{{ url_for('auth.members', page=pagination.next_num, search=search_query) }}" class="ent-btn-page" style="text-decoration: none;">Next</a>
+      {% else %}
+      <button class="ent-btn-page" disabled>Next</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  document.getElementById('member-search').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      window.location.href = '?search=' + encodeURIComponent(this.value);
+    }
+  });
+</script>
+
+{% include 'modals/member_detail_modal.html' %}
+{% endblock %}

@@ -1,0 +1,287 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <!-- Header Metrics -->
+    <div class="metrics-grid">
+        <div class="glass-card metric-item">
+            <div class="metric-info">
+                <span class="metric-label">Total Saldo Simpanan</span>
+                <h2 class="metric-value">Rp {{ "{:,.0f}".format(total_balance).replace(',', '.') }}</h2>
+                <div class="trend-indicator up">
+                    <i class="material-icons-round">trending_up</i>
+                    <span>+{{ growth_pct }}% bln ini</span>
+                </div>
+            </div>
+            <div class="metric-icon" style="background: rgba(110, 11, 11, 0.1); color: var(--primary-red);">
+                <i class="material-icons-round">account_balance_wallet</i>
+            </div>
+        </div>
+        
+        <div class="glass-card metric-item">
+            <div class="metric-info">
+                <span class="metric-label">Total Transaksi</span>
+                <h2 class="metric-value">{{ total_tx }}</h2>
+                <span class="metric-sublabel">Tahun 2026</span>
+            </div>
+            <div class="metric-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success-green);">
+                <i class="material-icons-round">swap_horiz</i>
+            </div>
+        </div>
+
+        <div class="glass-card metric-item">
+            <div class="metric-info">
+                <span class="metric-label">Anggota Aktif</span>
+                <h2 class="metric-value">{{ active_members }}</h2>
+                <span class="metric-sublabel">Orang</span>
+            </div>
+            <div class="metric-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning-orange);">
+                <i class="material-icons-round">group</i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-grid">
+        <div class="glass-card chart-container main-chart">
+            <div class="chart-header">
+                <h3>Pertumbuhan Simpanan Bulanan</h3>
+                <div class="chart-actions">
+                    <button class="btn-icon"><i class="material-icons-round">more_vert</i></button>
+                </div>
+            </div>
+            <div class="chart-body">
+                <canvas id="savingTrendChart"></canvas>
+            </div>
+        </div>
+
+        <div class="glass-card chart-container side-chart">
+            <div class="chart-header">
+                <h3>Distribusi Simpanan</h3>
+            </div>
+            <div class="chart-body">
+                <canvas id="distributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Insight Section -->
+    <div class="glass-card insight-section">
+        <div class="insight-header">
+            <i class="material-icons-round">auto_awesome</i>
+            <h3>Financial Insights</h3>
+        </div>
+        <div class="insight-list">
+            <div class="insight-item">
+                <div class="insight-icon"><i class="material-icons-round">info</i></div>
+                <div class="insight-text">Simpanan meningkat <strong>{{ growth_pct }}%</strong> dibanding bulan lalu, didorong oleh kenaikan Simpanan Sukarela.</div>
+            </div>
+            <div class="insight-item">
+                <div class="insight-icon"><i class="material-icons-round">verified</i></div>
+                <div class="insight-text">Simpanan Wajib tetap mendominasi dengan kontribusi <strong>45%</strong> dari total saldo anggota.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .analytics-container {
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+        padding: 20px 0;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .metric-item {
+        padding: 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .metric-label {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .metric-sublabel {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .trend-indicator {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .trend-indicator.up { color: var(--success-green); }
+    .trend-indicator.down { color: #ef4444; }
+
+    .metric-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .metric-icon i { font-size: 28px; }
+
+    .charts-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+    }
+
+    .chart-container {
+        padding: 25px;
+    }
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+    }
+
+    .chart-header h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .chart-body {
+        height: 350px;
+        position: relative;
+    }
+
+    .insight-section {
+        padding: 25px;
+    }
+
+    .insight-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 20px;
+        color: var(--warning-orange);
+    }
+
+    .insight-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .insight-item {
+        display: flex;
+        gap: 15px;
+        align-items: flex-start;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 12px;
+    }
+
+    .insight-icon {
+        color: var(--primary-red);
+    }
+
+    .insight-text {
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    @media (max-width: 1200px) {
+        .charts-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Saving Trend Chart
+        const trendCtx = document.getElementById('savingTrendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: {{ months | tojson }},
+                datasets: [{
+                    label: 'Total Simpanan (Juta Rp)',
+                    data: {{ trend_data | tojson }},
+                    borderColor: '#6e0b0b',
+                    backgroundColor: 'rgba(110, 11, 11, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#6e0b0b'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    }
+                }
+            }
+        });
+
+        // Distribution Chart
+        const distCtx = document.getElementById('distributionChart').getContext('2d');
+        new Chart(distCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ distribution | map(attribute='name') | list | tojson }},
+                datasets: [{
+                    data: {{ distribution | map(attribute='value') | list | tojson }},
+                    backgroundColor: ['#6e0b0b', '#8b1010', '#10b981', '#f59e0b'],
+                    borderWidth: 0,
+                    hoverOffset: 15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#94a3b8',
+                            padding: 20,
+                            font: { size: 12 }
+                        }
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+    });
+</script>
+{% endblock %}

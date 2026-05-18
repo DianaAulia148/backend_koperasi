@@ -1,0 +1,1104 @@
+{
+  "info": {
+    "_postman_id": "67a7e51a-9778-4508-808e-bf8c630aa698",
+    "name": "Co-op Koperasi Mobile API Collection",
+    "description": "# 📱 Dokumentasi API Koperasi Mobile\n\nKoleksi Postman ini berisi seluruh endpoint API yang digunakan oleh aplikasi **Koperasi Mobile (Flutter)** untuk berkomunikasi dengan server backend **Flask**. Dokumentasi ini dirancang dengan standar kualitas enterprise, lengkap dengan deskripsi terperinci, variabel dinamis, skrip otomatisasi token, dan contoh respons riil.\n\n## 🚀 Panduan Memulai Cepat\n1. **Set Environment**: Pastikan Anda membuat environment baru di Postman atau menggunakan variabel global.\n2. **Jalankan Login**: Endpoint `Login Akun` dilengkapi dengan *Test Script* yang otomatis menyimpan token JWT ke variabel `token` setelah login berhasil.\n3. **Gunakan Variabel**: Seluruh endpoint terproteksi otomatis menggunakan header `Authorization: Bearer {{token}}`.\n\n## ⚙️ Variabel Global / Environment\n| Variabel | Deskripsi | Nilai Default |\n| :--- | :--- | :--- |\n| `base_url` | URL dasar server backend Flask | `http://127.0.0.1:5000` |\n| `token` | Token JWT hasil otentikasi login | *Diisi otomatis saat login* |\n| `user_id` | ID pengguna mobile aktif (untuk cek status) | `1` |\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Autentikasi & Registrasi Akun",
+      "description": "Folder ini berisi API untuk pendaftaran akun mobile baru, verifikasi OTP email, pengiriman ulang OTP, dan proses login/autentikasi.",
+      "item": [
+        {
+          "name": "Register Akun Baru",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "full_name",
+                  "value": "Budi Santoso",
+                  "type": "text",
+                  "description": "Nama lengkap pendaftar (wajib)"
+                },
+                {
+                  "key": "email",
+                  "value": "budi.santoso@gmail.com",
+                  "type": "text",
+                  "description": "Alamat email unik (wajib)"
+                },
+                {
+                  "key": "password",
+                  "value": "Password123!",
+                  "type": "text",
+                  "description": "Kata sandi minimal 12 karakter (wajib)"
+                },
+                {
+                  "key": "phone",
+                  "value": "08123456789",
+                  "type": "text",
+                  "description": "Nomor telepon aktif (opsional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "register"
+              ]
+            },
+            "description": "### Deskripsi\nMelakukan pendaftaran akun pengguna baru untuk aplikasi mobile.\n\n### Alur Bisnis\n1. Pengguna memasukkan data pendaftaran melalui form-data.\n2. Server memvalidasi email (wajib unik) dan parameter.\n3. Jika belum terdaftar, akun dibuat dengan status `is_verified = False`.\n4. Jika sudah terdaftar tetapi belum verifikasi, data ditimpa agar pengguna bisa kirim ulang OTP.\n5. Server membuat kode OTP 6-digit yang berlaku selama 15 menit, lalu mengirimkannya via email secara asinkron.\n6. Mengembalikan respons berisi instruksi verifikasi serta `debug_otp` (untuk mempermudah pengembangan).\n\n### ⚠️ Catatan Penting\n* Parameter `email` dan `password` bersifat wajib.\n* Kode OTP dikirim via email menggunakan background thread agar respons API tetap instan."
+          },
+          "response": [
+            {
+              "name": "Registrasi Berhasil (Menunggu Verifikasi)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "full_name",
+                      "value": "Budi Santoso",
+                      "type": "text"
+                    },
+                    {
+                      "key": "email",
+                      "value": "budi.santoso@gmail.com",
+                      "type": "text"
+                    },
+                    {
+                      "key": "password",
+                      "value": "Password123!",
+                      "type": "text"
+                    },
+                    {
+                      "key": "phone",
+                      "value": "08123456789",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "register"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Registrasi berhasil. Silakan cek email Anda untuk kode verifikasi.\",\n  \"is_verified\": false,\n  \"debug_otp\": \"654321\"\n}"
+            },
+            {
+              "name": "Email Sudah Terdaftar",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "full_name",
+                      "value": "Budi Santoso",
+                      "type": "text"
+                    },
+                    {
+                      "key": "email",
+                      "value": "budi.santoso@gmail.com",
+                      "type": "text"
+                    },
+                    {
+                      "key": "password",
+                      "value": "Password123!",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "register"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"error\": \"Email sudah terdaftar.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Verifikasi OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"budi.santoso@gmail.com\",\n  \"otp_code\": \"654321\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "verify-otp"
+              ]
+            },
+            "description": "### Deskripsi\nMemverifikasi akun pengguna mobile menggunakan kode OTP 6-digit yang dikirim ke email.\n\n### Alur Bisnis\n1. Mendukung format data berupa **JSON (Application/JSON)** maupun **Form-Data**.\n2. Server mencari entri OTP terbaru yang valid (belum expired) berdasarkan email.\n3. Jika cocok, status `is_verified` pengguna diubah menjadi `True`.\n4. Menghapus kode OTP dari basis data untuk keamanan pasca-verifikasi.\n5. Menambahkan jejak audit ke log aktivitas."
+          },
+          "response": [
+            {
+              "name": "Verifikasi Berhasil",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"budi.santoso@gmail.com\",\n  \"otp_code\": \"654321\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/verify-otp",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "verify-otp"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Verifikasi berhasil. Silakan login.\"\n}"
+            },
+            {
+              "name": "OTP Salah atau Kadaluarsa",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"budi.santoso@gmail.com\",\n  \"otp_code\": \"000000\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/verify-otp",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "verify-otp"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"error\": \"Kode OTP salah atau sudah kadaluarsa.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Kirim Ulang OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"budi.santoso@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/resend-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "resend-otp"
+              ]
+            },
+            "description": "### Deskripsi\nMengirim ulang kode verifikasi OTP baru ke email terdaftar yang belum terverifikasi.\n\n### Alur Bisnis\n1. Menerima email tujuan melalui JSON atau Form-data.\n2. Memvalidasi keberadaan email di database.\n3. Membuat OTP 6-digit baru dan menyimpannya di DB dengan masa aktif 15 menit.\n4. Mengirimkan email verifikasi baru secara asinkron."
+          },
+          "response": [
+            {
+              "name": "OTP Baru Berhasil Dikirim",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"budi.santoso@gmail.com\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/resend-otp",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "resend-otp"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Kode verifikasi baru telah dikirim ke email Anda.\",\n  \"debug_otp\": \"987654\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login Akun",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Skrip Otomatisasi Token JWT",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.success && jsonData.token) {",
+                  "    pm.environment.set(\"token\", jsonData.token);",
+                  "    console.log(\"Premium Automation: Token JWT berhasil disimpan ke variabel environment 'token'!\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "email",
+                  "value": "budi.santoso@gmail.com",
+                  "type": "text",
+                  "description": "Email akun (wajib)"
+                },
+                {
+                  "key": "password",
+                  "value": "Password123!",
+                  "type": "text",
+                  "description": "Kata sandi akun (wajib)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "login"
+              ]
+            },
+            "description": "### Deskripsi\nMelakukan autentikasi kredensial pengguna mobile. Jika berhasil, server akan mengembalikan token JWT yang berlaku selama 7 hari.\n\n### Fitur Unggulan Postman (Automation)\nEndpoint ini memiliki **Test Script** bawaan di Postman yang otomatis mengambil nilai `token` dari respons JSON dan menyimpannya ke variabel `{{token}}` lingkungan Anda. Anda tidak perlu menyalin token secara manual!\n\n### Alur Bisnis\n1. Menerima kredensial email dan password (bisa format form-data maupun JSON).\n2. Mencocokkan hash SHA-256 password.\n3. Jika belum diverifikasi OTP, server mengembalikan status HTTP `403 Forbidden` dengan informasi `needs_verification: true`.\n4. Jika valid dan terverifikasi, server me-generate JWT token dengan payload `user_id`.\n5. Menambahkan log aktivitas masuk pengguna."
+          },
+          "response": [
+            {
+              "name": "Login Berhasil",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "email",
+                      "value": "budi.santoso@gmail.com",
+                      "type": "text"
+                    },
+                    {
+                      "key": "password",
+                      "value": "Password123!",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "login"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJleHAiOjE3MTU5OTAwMDB9.EXAMPLE_SIGNATURE_KEY\",\n  \"user\": {\n    \"id\": 1,\n    \"full_name\": \"Budi Santoso\",\n    \"email\": \"budi.santoso@gmail.com\",\n    \"is_verified\": true\n  }\n}"
+            },
+            {
+              "name": "Akun Belum Diverifikasi OTP",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "email",
+                      "value": "budi.santoso@gmail.com",
+                      "type": "text"
+                    },
+                    {
+                      "key": "password",
+                      "value": "Password123!",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "login"
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"error\": \"Akun Anda belum diverifikasi. Silakan cek email untuk kode OTP.\",\n  \"needs_verification\": true,\n  \"email\": \"budi.santoso@gmail.com\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Pendaftaran Anggota (KYC)",
+      "description": "Folder ini berisi API terproteksi dan publik untuk melayani registrasi e-KYC (OCR KTP, upload dokumen digital, dan pemeriksaan status kelayakan pendaftaran).",
+      "item": [
+        {
+          "name": "Ekstraksi OCR KTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Gambar KTP digital (Format JPEG/PNG, biner)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ocr",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ocr"
+              ]
+            },
+            "description": "### Deskripsi\nMengunggah gambar KTP fisik pengguna untuk diproses oleh modul OCR (Optical Character Recognition) untuk mengekstrak field data identitas pribadi secara otomatis.\n\n### Alur Bisnis\n1. Menerima unggahan gambar KTP via multipart form-data.\n2. Gambar disimpan sementara di folder server.\n3. Algoritma OCR menganalisis teks gambar dan mengekstrak NIK, Nama, TTL, Jenis Kelamin, Agama, dan Alamat.\n4. Data hasil ekstraksi dikembalikan ke aplikasi mobile agar dapat dikonfirmasi/diedit kembali oleh pengguna (mengurangi typo)."
+          },
+          "response": [
+            {
+              "name": "Hasil Ekstraksi OCR Sukses",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/ocr",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ocr"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"nama\": \"BUDI SANTOSO\",\n  \"nik\": \"3275012345678901\",\n  \"ttl\": \"Jakarta, 01-01-1990\",\n  \"jenis_kelamin\": \"Laki-laki\",\n  \"agama\": \"Islam\",\n  \"alamat\": \"Jl. Contoh No. 123, RT 001/RW 002, Kel. Bekasi Jaya, Kec. Bekasi Timur, Kota Bekasi\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Registrasi Anggota Koperasi",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nik",
+                  "value": "3275012345678901",
+                  "type": "text",
+                  "description": "NIK KTP Anggota (wajib)"
+                },
+                {
+                  "key": "nama",
+                  "value": "Budi Santoso",
+                  "type": "text",
+                  "description": "Nama Lengkap Anggota (wajib)"
+                },
+                {
+                  "key": "alamat",
+                  "value": "Jl. Contoh No. 123, Jakarta",
+                  "type": "text",
+                  "description": "Alamat Tempat Tinggal (wajib)"
+                },
+                {
+                  "key": "phone",
+                  "value": "08123456789",
+                  "type": "text",
+                  "description": "Nomor Handphone Aktif (wajib)"
+                },
+                {
+                  "key": "jenis_kelamin",
+                  "value": "Laki-laki",
+                  "type": "text",
+                  "description": "Laki-laki / Perempuan (wajib)"
+                },
+                {
+                  "key": "ttl",
+                  "value": "Jakarta, 01-01-1990",
+                  "type": "text",
+                  "description": "Tempat Tanggal Lahir (wajib)"
+                },
+                {
+                  "key": "ktp",
+                  "type": "file",
+                  "src": [],
+                  "description": "File Foto KTP (Wajib)"
+                },
+                {
+                  "key": "kartu_anggota",
+                  "type": "file",
+                  "src": [],
+                  "description": "File Foto Kartu Karyawan/Anggota (Wajib)"
+                },
+                {
+                  "key": "pas_foto",
+                  "type": "file",
+                  "src": [],
+                  "description": "File Pas Foto Resmi 3x4 (Wajib)"
+                },
+                {
+                  "key": "tanda_tangan",
+                  "type": "file",
+                  "src": [],
+                  "description": "File Foto Tanda Tangan Digital (Wajib)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/member/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "member",
+                "register"
+              ]
+            },
+            "description": "### Deskripsi\nMengirimkan formulir pendaftaran anggota koperasi resmi beserta berkas-berkas dokumen KYC terlampir.\n\n### 🔒 Keamanan (Autentikasi)\nEndpoint ini wajib menyertakan token JWT pada header `Authorization: Bearer {{token}}`.\n\n### Alur Bisnis\n1. Mengidentifikasi user ID berdasarkan payload token JWT.\n2. Memeriksa apakah user sudah terdaftar atau memiliki pengajuan berstatus `pending` atau `approved`. Jika ada, pendaftaran ditolak.\n3. Menerima 4 jenis berkas digital, lalu mengunggahnya secara aman ke **Cloudinary** (cloud storage) dengan penamaan khusus berindeks user ID.\n4. Menyimpan data anggota baru ke tabel `member_registration` dengan status awal `pending`.\n5. Menambahkan log jejak audit."
+          },
+          "response": [
+            {
+              "name": "Pendaftaran Berhasil Dikirim",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "nik",
+                      "value": "3275012345678901",
+                      "type": "text"
+                    },
+                    {
+                      "key": "nama",
+                      "value": "Budi Santoso",
+                      "type": "text"
+                    },
+                    {
+                      "key": "alamat",
+                      "value": "Jl. Contoh No. 123, Jakarta",
+                      "type": "text"
+                    },
+                    {
+                      "key": "phone",
+                      "value": "08123456789",
+                      "type": "text"
+                    },
+                    {
+                      "key": "jenis_kelamin",
+                      "value": "Laki-laki",
+                      "type": "text"
+                    },
+                    {
+                      "key": "ttl",
+                      "value": "Jakarta, 01-01-1990",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/member/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "register"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Pendaftaran berhasil dikirim.\"\n}"
+            },
+            {
+              "name": "Sudah Memiliki Pendaftaran Aktif",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "nik",
+                      "value": "3275012345678901",
+                      "type": "text"
+                    },
+                    {
+                      "key": "nama",
+                      "value": "Budi Santoso",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/member/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "register"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"error\": \"Anda sudah memiliki pendaftaran dengan status: pending\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cek Status Pendaftaran",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/member/status/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "member",
+                "status",
+                "{{user_id}}"
+              ]
+            },
+            "description": "### Deskripsi\nMengecek status kemajuan pendaftaran keanggotaan pengguna mobile berdasarkan ID Pengguna (`user_id`).\n\n### Parameter Path\n* `user_id`: ID unik pengguna mobile di database (misal: `1`).\n\n### Alur Bisnis & Pemetaan Status\nEndpoint ini mengembalikan data terstandardisasi (case-insensitive) untuk diproses oleh aplikasi Flutter:\n1. **`not_started`**: Pengguna baru terdaftar dan belum mengajukan registrasi anggota.\n2. **`pending`**: Pengajuan pendaftaran telah masuk dan sedang dievaluasi oleh pengurus.\n3. **`approved`**: Pendaftaran disetujui, pengguna resmi menjadi anggota aktif.\n4. **`rejected`**: Pendaftaran ditolak, respons akan menyertakan alasan penolakan pada objek `rejection_reason`."
+          },
+          "response": [
+            {
+              "name": "Status: Approved (Aktif)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/member/status/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "status",
+                    "1"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"approved\",\n  \"full_name\": \"Budi Santoso\",\n  \"registration_details\": {\n    \"rejection_reason\": \"\"\n  }\n}"
+            },
+            {
+              "name": "Status: Pending (Sedang Direview)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/member/status/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "status",
+                    "1"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"pending\",\n  \"full_name\": \"Budi Santoso\",\n  \"registration_details\": {\n    \"rejection_reason\": \"\"\n  }\n}"
+            },
+            {
+              "name": "Status: Rejected (Ditolak)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/member/status/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "status",
+                    "1"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"rejected\",\n  \"full_name\": \"Budi Santoso\",\n  \"registration_details\": {\n    \"rejection_reason\": \"Gambar KTP tidak jelas/buram. Silakan unggah ulang foto KTP dengan pencahayaan yang cukup.\"\n  }\n}"
+            },
+            {
+              "name": "Status: Not Started (Belum Mengajukan)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/member/status/1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "status",
+                    "1"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"status\": \"not_started\",\n  \"full_name\": \"Budi Santoso\",\n  \"registration_details\": {\n    \"rejection_reason\": \"\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Layanan Keuangan & Transaksi",
+      "description": "Folder ini berisi API transaksi keuangan yang dilindungi oleh sistem token JWT, mencakup profil finansial, saldo simpanan, mutasi, infografis analytics, dan penarikan simpanan.",
+      "item": [
+        {
+          "name": "Detail Keuangan Anggota",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/member/financial_details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "member",
+                "financial_details"
+              ]
+            },
+            "description": "### Deskripsi\nMengambil data profil lengkap anggota koperasi beserta informasi rekening keuangan, saldo tiap jenis simpanan, mutasi 10 transaksi terakhir, metrik analitis (total simpanan via payroll, total penarikan, estimasi SHU 5% dari saldo), serta tren grafis pertumbuhan bulanan.\n\n### 🔒 Keamanan (Autentikasi)\nWajib menyertakan token JWT pada header `Authorization: Bearer {{token}}`.\n\n### Kategori Jenis Simpanan\n* `saving_type_id: 1` -> Simpanan Pokok (Dibayar sekali di awal)\n* `saving_type_id: 2` -> Simpanan Wajib (Potong gaji bulanan via Payroll)\n* `saving_type_id: 3` -> Simpanan Sukarela (Simpanan fleksibel bebas tarik)"
+          },
+          "response": [
+            {
+              "name": "Data Keuangan Berhasil Diambil",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/member/financial_details",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "financial_details"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"member\": {\n    \"id\": 1,\n    \"member_no\": \"M-20260518123045\",\n    \"name\": \"Budi Santoso\",\n    \"phone\": \"08123456789\",\n    \"email\": \"budi.santoso@gmail.com\",\n    \"address\": \"Jl. Contoh No. 123, RT 001/RW 002, Jakarta\",\n    \"status\": \"AKTIF\",\n    \"birth_date\": \"1990-01-01\",\n    \"gender\": \"Laki-laki\",\n    \"jabatan\": \"IT Senior Specialist\",\n    \"pas_foto\": \"https://res.cloudinary.com/demo/image/upload/v15789/reg_1_pas_foto.jpg\"\n  },\n  \"total_balance\": 5250000.0,\n  \"balances\": [\n    {\n      \"saving_type_id\": 1,\n      \"balance\": 1000000.0,\n      \"updated_at\": \"2026-05-18 10:00\"\n    },\n    {\n      \"saving_type_id\": 2,\n      \"balance\": 4000000.0,\n      \"updated_at\": \"2026-05-18 10:00\"\n    },\n    {\n      \"saving_type_id\": 3,\n      \"balance\": 250000.0,\n      \"updated_at\": \"2026-05-18 10:00\"\n    }\n  ],\n  \"recent_transactions\": [\n    {\n      \"id\": 102,\n      \"type\": \"DEPOSIT\",\n      \"saving_type\": \"Simpanan Wajib\",\n      \"saving_type_id\": 2,\n      \"amount\": 250000.0,\n      \"date\": \"2026-05-01 08:30\",\n      \"status\": \"SUCCESS\",\n      \"description\": \"Potong Payroll Bulanan Mei 2026\"\n    },\n    {\n      \"id\": 98,\n      \"type\": \"WITHDRAWAL\",\n      \"saving_type\": \"Simpanan Sukarela\",\n      \"saving_type_id\": 3,\n      \"amount\": 500000.0,\n      \"date\": \"2026-04-15 14:00\",\n      \"status\": \"SUCCESS\",\n      \"description\": \"Penarikan Dana Sukarela via Mobile App\"\n    }\n  ],\n  \"analytics\": {\n    \"total_payroll\": 4000000.0,\n    \"total_withdrawal\": 500000.0,\n    \"shu_estimation\": 262500.0,\n    \"monthly_growth\": {\n      \"labels\": [\n        \"Des 2025\",\n        \"Jan 2026\",\n        \"Feb 2026\",\n        \"Mar 2026\",\n        \"Apr 2026\",\n        \"Mei 2026\"\n      ],\n      \"data\": [\n        4250000.0,\n        4450000.0,\n        4650000.0,\n        4800000.0,\n        5000000.0,\n        5250000.0\n      ]\n    },\n    \"payroll_history\": [\n      {\n        \"date\": \"2026-05\",\n        \"amount\": 250000.0,\n        \"status\": \"SUCCESS\"\n      },\n      {\n        \"date\": \"2026-04\",\n        \"amount\": 250000.0,\n        \"status\": \"SUCCESS\"\n      },\n      {\n        \"date\": \"2026-03\",\n        \"amount\": 250000.0,\n        \"status\": \"SUCCESS\"\n      }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Permohonan Penarikan Simpanan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "amount",
+                  "value": "500000",
+                  "type": "text",
+                  "description": "Nominal uang yang ditarik (wajib)"
+                },
+                {
+                  "key": "bank_name",
+                  "value": "Bank Mandiri",
+                  "type": "text",
+                  "description": "Nama Bank penerima (wajib)"
+                },
+                {
+                  "key": "account_number",
+                  "value": "1234567890",
+                  "type": "text",
+                  "description": "Nomor rekening bank penerima (wajib)"
+                },
+                {
+                  "key": "account_holder",
+                  "value": "Budi Santoso",
+                  "type": "text",
+                  "description": "Nama pemilik rekening (wajib)"
+                },
+                {
+                  "key": "saving_type_id",
+                  "value": "3",
+                  "type": "text",
+                  "description": "ID jenis simpanan asal penarikan (wajib)"
+                },
+                {
+                  "key": "reason",
+                  "value": "Kebutuhan mendesak biaya sekolah anak",
+                  "type": "text",
+                  "description": "Alasan penarikan dana (opsional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/member/withdraw",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "member",
+                "withdraw"
+              ]
+            },
+            "description": "### Deskripsi\nMengajukan permohonan penarikan saldo simpanan anggota (terutama Simpanan Sukarela) ke rekening bank milik anggota.\n\n### 🔒 Keamanan (Autentikasi)\nWajib menyertakan token JWT pada header `Authorization: Bearer {{token}}`.\n\n### Alur Bisnis\n1. Mengidentifikasi user ID anggota dari token JWT.\n2. Memeriksa ketersediaan saldo yang memadai pada kategori simpanan yang dipilih.\n3. Merekam entri baru ke tabel `withdrawal_requests` dengan status `PENDING`.\n4. Pengurus koperasi di dashboard web admin akan mereview pengajuan ini. Jika disetujui, dana akan dikirim dan status diubah menjadi `COMPLETED`."
+          },
+          "response": [
+            {
+              "name": "Permohonan Penarikan Berhasil Dikirim",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "amount",
+                      "value": "500000",
+                      "type": "text"
+                    },
+                    {
+                      "key": "bank_name",
+                      "value": "Bank Mandiri",
+                      "type": "text"
+                    },
+                    {
+                      "key": "account_number",
+                      "value": "1234567890",
+                      "type": "text"
+                    },
+                    {
+                      "key": "account_holder",
+                      "value": "Budi Santoso",
+                      "type": "text"
+                    },
+                    {
+                      "key": "saving_type_id",
+                      "value": "3",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/member/withdraw",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "member",
+                    "withdraw"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"Permohonan penarikan berhasil dikirim.\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="glass-card full-chart-container" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px;">
+        <div class="chart-header" style="margin-bottom: 25px;">
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #6e0b0b;">History & Trend: {{ page_title }}</h3>
+            <span style="font-size: 0.85rem; color: #8c8282; font-weight: 600;">Data historis tren indikator makro</span>
+        </div>
+        <div class="chart-body" style="height: 400px; position: relative;">
+            <canvas id="indicatorChart"></canvas>
+        </div>
+    </div>
+
+    <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+        <div class="ent-table-header" style="padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3efec;">
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Data Historis</h3>
+            <div class="ent-search-wrapper">
+                <i class="material-icons-round ent-search-icon">search</i>
+                <input type="text" id="indicator-search" class="ent-search-input" placeholder="Cari data...">
+            </div>
+        </div>
+        <div class="ent-table-wrapper">
+            <table class="ent-table" id="indicator-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px; text-align: center;">NO</th>
+                        <th>TANGGAL</th>
+                        <th style="text-align: center;">NILAI / RATE</th>
+                        <th style="text-align: right;">SUMBER DATA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in data %}
+                    <tr>
+                        <td style="text-align: center; font-weight: 800; color: #6e0b0b;">{{ loop.index }}</td>
+                        <td style="font-weight: 600;">{{ item.date.strftime('%d %b %Y') }}</td>
+                        <td style="text-align: center; font-weight: 800; color: #6e0b0b; font-size: 1.1rem;">
+                            {% if 'Kurs' in page_title %}
+                                Rp {{ "{:,.0f}".format(item.usd_idr).replace(',', '.') }}
+                            {% elif 'BI Rate' in page_title %}
+                                {{ item.bi_rate }}%
+                            {% else %}
+                                {{ item.inflation_rate }}%
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;"><span style="font-size: 11px; background: #f3f3f3; padding: 4px 10px; border-radius: 6px; font-weight: 700;">{{ item.source }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="ent-pagination">
+            <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
+            <div id="indicator-pagination"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Init Table
+        new SmartTable('indicator-table', {
+            searchId: 'indicator-search',
+            paginationId: 'indicator-pagination',
+            perPage: 10
+        });
+
+        // Init Chart
+        const ctx = document.getElementById('indicatorChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [{% for item in data %}'{{ item.date.strftime("%b %Y") }}',{% endfor %}].reverse(),
+                datasets: [{
+                    label: '{{ page_title }}',
+                    data: [
+                        {% for item in data %}
+                            {% if 'Kurs' in page_title %}{{ item.usd_idr }}{% elif 'BI Rate' in page_title %}{{ item.bi_rate }}{% else %}{{ item.inflation_rate }}{% endif %},
+                        {% endfor %}
+                    ].reverse(),
+                    borderColor: '#6e0b0b',
+                    backgroundColor: 'rgba(110, 11, 11, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointBackgroundColor: '#6e0b0b',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

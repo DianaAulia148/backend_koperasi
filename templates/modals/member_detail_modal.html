@@ -1,0 +1,360 @@
+<!-- Full Member Detail Modal -->
+<div id="memberDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
+  <div style="background:#fff;width:95%;max-width:1100px;border-radius:24px;box-shadow:0 25px 50px rgba(0,0,0,0.3);overflow:hidden;display:flex;flex-direction:column;max-height:92vh;">
+
+    <!-- Header -->
+    <div style="padding:18px 28px;border-bottom:1px solid #f3efec;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:48px;height:48px;border-radius:12px;background:#f3efec;overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:800;color:#6e0b0b;">
+          <img id="mdPasFoto" src="" style="width:100%;height:100%;object-fit:cover;display:none;">
+          <span id="mdInitials"></span>
+        </div>
+        <div>
+          <h3 id="mdName" style="margin:0;font-size:1.1rem;font-weight:800;color:#111;"></h3>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+            <span id="mdNo" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#6e0b0b;background:#fff5f5;padding:2px 8px;border-radius:6px;"></span>
+            <span id="mdJabatan" style="font-size:12px;color:#888;"></span>
+            <span id="mdStatus" style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;background:#e8f8f0;color:#27ae60;"></span>
+          </div>
+        </div>
+      </div>
+      <button onclick="window.closeMemberDetailModal()" style="background:#f3efec;border:none;cursor:pointer;color:#6e0b0b;padding:8px;border-radius:50%;display:flex;"><i class="material-icons-round">close</i></button>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:2px solid #f3efec;flex-shrink:0;background:#fafafa;">
+      <button class="md-tab active" onclick="mdSwitchTab('info')" id="tab-info" style="padding:12px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:0.85rem;color:#6e0b0b;border-bottom:2px solid #6e0b0b;margin-bottom:-2px;">Data Diri</button>
+      <button class="md-tab" onclick="mdSwitchTab('savings')" id="tab-savings" style="padding:12px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:0.85rem;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">Simpanan</button>
+      <button class="md-tab" onclick="mdSwitchTab('history')" id="tab-history" style="padding:12px 24px;border:none;background:none;cursor:pointer;font-weight:700;font-size:0.85rem;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;">Riwayat Mutasi</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="mdLoading" style="text-align:center;padding:60px;color:#aaa;">
+      <i class="material-icons-round" style="font-size:40px;animation:spin 1s linear infinite;">refresh</i>
+      <div style="margin-top:12px;font-weight:700;">Memuat data...</div>
+    </div>
+
+    <!-- TAB: Info -->
+    <div id="tabContent-info" style="display:none;overflow-y:auto;flex:1;">
+      <div style="display:grid;grid-template-columns:180px 1fr;gap:0;">
+        <div style="padding:25px 20px;border-right:1px solid #f3efec;display:flex;flex-direction:column;align-items:center;gap:12px;background:#fafafa;">
+          <div style="width:130px;height:170px;border-radius:14px;overflow:hidden;background:#eee;display:flex;align-items:center;justify-content:center;border:2px solid #eee;">
+            <img id="mdPhotoFull" src="" style="width:100%;height:100%;object-fit:cover;display:none;">
+            <i id="mdPhotoIcon" class="material-icons-round" style="font-size:48px;color:#ccc;">person</i>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;font-weight:800;color:#888;text-transform:uppercase;">Bergabung</div>
+            <div id="mdDateJoined" style="font-size:12px;font-weight:800;color:#111;margin-top:3px;"></div>
+          </div>
+        </div>
+        <div style="padding:25px;" id="mdPersonalInfo"></div>
+      </div>
+    </div>
+
+    <!-- TAB: Simpanan -->
+    <div id="tabContent-savings" style="display:none;overflow-y:auto;flex:1;padding:25px;">
+      <!-- Total -->
+      <div style="background:#6e0b0b;border-radius:20px;padding:22px;color:white;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div><div style="font-size:11px;font-weight:700;opacity:0.8;">TOTAL SALDO AKTIF</div><div id="mdTotalBal" style="font-size:2rem;font-weight:800;margin-top:6px;">Rp 0</div></div>
+        <div style="display:flex;gap:12px;">
+          <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:12px 18px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;opacity:0.8;">PAYROLL</div>
+            <div id="mdTotalPayroll" style="font-size:14px;font-weight:800;margin-top:4px;">Rp 0</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:12px 18px;text-align:center;">
+            <div style="font-size:10px;font-weight:700;opacity:0.8;">PENARIKAN</div>
+            <div id="mdTotalWithdrawal" style="font-size:14px;font-weight:800;margin-top:4px;">Rp 0</div>
+          </div>
+        </div>
+      </div>
+      <!-- Saving cards -->
+      <div id="mdSavingCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:15px;"></div>
+    </div>
+
+    <!-- TAB: Riwayat Mutasi -->
+    <div id="tabContent-history" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <!-- Filters -->
+      <div style="padding:15px 25px;border-bottom:1px solid #f3efec;display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fafafa;flex-shrink:0;">
+        <input type="text" id="mdTxSearch" placeholder="Cari keterangan/jenis..." oninput="mdFilterTx()" style="padding:8px 14px;border-radius:10px;border:1px solid #ddd;font-size:13px;flex:1;min-width:160px;">
+        <input type="date" id="mdTxFrom" onchange="mdFilterTx()" style="padding:8px 12px;border-radius:10px;border:1px solid #ddd;font-size:13px;">
+        <input type="date" id="mdTxTo" onchange="mdFilterTx()" style="padding:8px 12px;border-radius:10px;border:1px solid #ddd;font-size:13px;">
+        <button onclick="mdExportExcel('history')" style="padding:8px 14px;border-radius:10px;border:none;background:#27ae60;color:white;font-weight:700;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:16px;">download</i>Excel</button>
+        <button onclick="mdExportPdf('history')" style="padding:8px 14px;border-radius:10px;border:none;background:#2f80ed;color:white;font-weight:700;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:16px;">picture_as_pdf</i>PDF</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:20px 25px;">
+        <table class="ent-table" id="mdTxTable" style="border:1px solid #f3efec;">
+          <thead><tr><th>TANGGAL</th><th>JENIS SIMPANAN</th><th>KETERANGAN</th><th style="text-align:center;">STATUS</th><th style="text-align:right;">NOMINAL</th></tr></thead>
+          <tbody id="mdTxBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-Saving History Panel (slides in) -->
+    <div id="mdSavingHistoryPanel" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div style="padding:15px 25px;border-bottom:1px solid #f3efec;display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fafafa;flex-shrink:0;">
+        <button onclick="mdCloseSavingHistory()" style="background:#f3efec;border:none;cursor:pointer;padding:8px 14px;border-radius:10px;font-weight:700;color:#6e0b0b;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:16px;">arrow_back</i>Kembali</button>
+        <span id="mdSavingHistoryTitle" style="font-weight:800;color:#6e0b0b;font-size:0.95rem;flex:1;"></span>
+        <input type="date" id="mdShFrom" onchange="mdFilterSavingHistory()" style="padding:8px 12px;border-radius:10px;border:1px solid #ddd;font-size:13px;">
+        <input type="date" id="mdShTo" onchange="mdFilterSavingHistory()" style="padding:8px 12px;border-radius:10px;border:1px solid #ddd;font-size:13px;">
+        <button onclick="mdExportExcel('saving')" style="padding:8px 14px;border-radius:10px;border:none;background:#27ae60;color:white;font-weight:700;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:16px;">download</i>Excel</button>
+        <button onclick="mdExportPdf('saving')" style="padding:8px 14px;border-radius:10px;border:none;background:#2f80ed;color:white;font-weight:700;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;"><i class="material-icons-round" style="font-size:16px;">picture_as_pdf</i>PDF</button>
+      </div>
+      <div style="overflow-y:auto;flex:1;padding:20px 25px;">
+        <table class="ent-table" id="mdShTable" style="border:1px solid #f3efec;">
+          <thead><tr><th>TANGGAL</th><th>KETERANGAN</th><th style="text-align:center;">STATUS</th><th style="text-align:right;">NOMINAL</th></tr></thead>
+          <tbody id="mdShBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let _mdData = null;
+let _mdMemberId = null;
+let _mdCurrentSavingId = null;
+
+// ─── Open / Close ─────────────────────────────────────────────────────────────
+window.closeMemberDetailModal = function() {
+  document.getElementById('memberDetailModal').style.display = 'none';
+};
+
+window.openMemberDetailModal = function(memberId) {
+  _mdMemberId = memberId;
+  document.getElementById('memberDetailModal').style.display = 'flex';
+  document.getElementById('mdLoading').style.display = 'block';
+  ['info','savings','history'].forEach(t => {
+    document.getElementById('tabContent-' + t).style.display = 'none';
+  });
+  document.getElementById('mdSavingHistoryPanel').style.display = 'none';
+
+  fetch('/api/member/' + memberId + '/financial_details')
+    .then(r => r.json())
+    .then(data => {
+      _mdData = data;
+      document.getElementById('mdLoading').style.display = 'none';
+      mdPopulate(data);
+      mdSwitchTab('info');
+    })
+    .catch(() => {
+      document.getElementById('mdLoading').innerHTML = '<div style="color:#eb5757;padding:40px;text-align:center;">Gagal memuat data.</div>';
+    });
+};
+
+// ─── Tab switching ────────────────────────────────────────────────────────────
+function mdSwitchTab(tab) {
+  document.getElementById('mdSavingHistoryPanel').style.display = 'none';
+  ['info','savings','history'].forEach(t => {
+    const el = document.getElementById('tabContent-' + t);
+    const btn = document.getElementById('tab-' + t);
+    if (el) el.style.display = 'none';
+    if (btn) { btn.style.color = '#888'; btn.style.borderBottomColor = 'transparent'; }
+  });
+  const active = document.getElementById('tabContent-' + tab);
+  const abtn   = document.getElementById('tab-' + tab);
+  if (active) active.style.display = tab === 'history' ? 'flex' : 'block';
+  if (abtn)   { abtn.style.color = '#6e0b0b'; abtn.style.borderBottomColor = '#6e0b0b'; }
+}
+
+// ─── Populate ─────────────────────────────────────────────────────────────────
+function mdPopulate(data) {
+  const m = data.member;
+
+  // Header
+  document.getElementById('mdName').textContent    = m.name;
+  document.getElementById('mdNo').textContent      = m.member_no;
+  document.getElementById('mdJabatan').textContent = m.jabatan;
+  const sp = document.getElementById('mdStatus');
+  sp.textContent = m.status;
+  sp.style.background = m.status === 'AKTIF' ? '#e8f8f0' : '#fff5f5';
+  sp.style.color = m.status === 'AKTIF' ? '#27ae60' : '#6e0b0b';
+
+  // Avatar
+  document.getElementById('mdInitials').textContent = m.name.substring(0,2).toUpperCase();
+  if (m.pas_foto) {
+    document.getElementById('mdPasFoto').src = m.pas_foto;
+    document.getElementById('mdPasFoto').style.display = 'block';
+    document.getElementById('mdInitials').style.display = 'none';
+  }
+
+  // Foto full
+  if (m.pas_foto) {
+    document.getElementById('mdPhotoFull').src = m.pas_foto;
+    document.getElementById('mdPhotoFull').style.display = 'block';
+    document.getElementById('mdPhotoIcon').style.display = 'none';
+  }
+  document.getElementById('mdDateJoined').textContent = m.date_joined;
+
+  // Personal info rows
+  const fields = [['Tgl. Lahir',m.birth_date],['Gender',m.gender],['Telepon',m.phone],['Email',m.email],['Alamat',m.address]];
+  document.getElementById('mdPersonalInfo').innerHTML = `
+    <div style="font-size:11px;font-weight:800;color:#888;text-transform:uppercase;margin-bottom:16px;letter-spacing:.05em;">Data Diri</div>
+    ${fields.map(([l,v]) => `
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin-bottom:14px;font-size:13px;align-items:start;">
+        <span style="color:#888;font-weight:700;font-size:11px;padding-top:2px;">${l}</span>
+        <span style="font-weight:700;color:#111;">${v}</span>
+      </div>`).join('')}
+  `;
+
+  // Savings tab
+  document.getElementById('mdTotalBal').textContent       = 'Rp ' + (data.total_balance||0).toLocaleString('id-ID');
+  document.getElementById('mdTotalPayroll').textContent   = 'Rp ' + (data.analytics.total_payroll||0).toLocaleString('id-ID');
+  document.getElementById('mdTotalWithdrawal').textContent= 'Rp ' + (data.analytics.total_withdrawal||0).toLocaleString('id-ID');
+
+  const cards = document.getElementById('mdSavingCards');
+  cards.innerHTML = '';
+  (data.balances||[]).forEach(b => {
+    cards.innerHTML += `
+      <div onclick="mdOpenSavingHistory(${b.id},'${b.name}')"
+           style="background:white;border:1px solid #eee;border-radius:18px;padding:20px 22px;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.03);"
+           onmouseover="this.style.boxShadow='0 8px 24px rgba(110,11,11,.1)';this.style.borderColor='#6e0b0b'"
+           onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,.03)';this.style.borderColor='#eee'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:11px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.05em;">${b.name}</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#111;margin-top:8px;">Rp ${(b.balance||0).toLocaleString('id-ID')}</div>
+          </div>
+          <div style="background:#f3efec;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+            <i class="material-icons-round" style="color:#6e0b0b;font-size:18px;">account_balance_wallet</i>
+          </div>
+        </div>
+        <div style="margin-top:14px;font-size:11px;color:#6e0b0b;font-weight:700;display:flex;align-items:center;gap:4px;">
+          <i class="material-icons-round" style="font-size:13px;">history</i> Lihat Riwayat →
+        </div>
+      </div>`;
+  });
+  if (!data.balances || data.balances.length === 0) {
+    cards.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:30px;grid-column:1/-1;">Belum ada data simpanan.</div>';
+  }
+
+  // History tab — populate all transactions
+  mdRenderTxTable(data.recent_transactions || []);
+}
+
+// ─── Transaction table ────────────────────────────────────────────────────────
+function mdRenderTxTable(rows) {
+  const tbody = document.getElementById('mdTxBody');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#aaa;">Tidak ada data.</td></tr>';
+    return;
+  }
+  rows.forEach(tx => {
+    const isDebit = tx.type === 'DEBIT' || tx.type === 'WITHDRAWAL';
+    tbody.innerHTML += `<tr>
+      <td style="font-size:12px;color:#666;">${tx.date}</td>
+      <td style="font-weight:700;">${tx.saving_type}</td>
+      <td style="font-size:12px;color:#888;">${tx.description}</td>
+      <td style="text-align:center;"><span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;background:${tx.status==='SUCCESS'?'#e8f8f0':'#fff9db'};color:${tx.status==='SUCCESS'?'#27ae60':'#f08c00'};">${tx.status}</span></td>
+      <td style="text-align:right;font-weight:800;color:${isDebit?'#eb5757':'#27ae60'};font-family:'JetBrains Mono',monospace;">
+        ${isDebit?'-':'+'}Rp ${(tx.amount||0).toLocaleString('id-ID')}</td>
+    </tr>`;
+  });
+}
+
+function mdFilterTx() {
+  const q     = (document.getElementById('mdTxSearch').value||'').toLowerCase();
+  const from  = document.getElementById('mdTxFrom').value;
+  const to    = document.getElementById('mdTxTo').value;
+  const txs   = (_mdData && _mdData.recent_transactions) || [];
+  const filtered = txs.filter(tx => {
+    const matchQ = !q || tx.description.toLowerCase().includes(q) || tx.saving_type.toLowerCase().includes(q);
+    const matchFrom = !from || tx.date_iso >= from;
+    const matchTo   = !to   || tx.date_iso <= to;
+    return matchQ && matchFrom && matchTo;
+  });
+  mdRenderTxTable(filtered);
+}
+
+// ─── Per-saving history ───────────────────────────────────────────────────────
+function mdOpenSavingHistory(savingTypeId, savingName) {
+  _mdCurrentSavingId = savingTypeId;
+  ['info','savings','history'].forEach(t => {
+    document.getElementById('tabContent-' + t).style.display = 'none';
+  });
+  document.getElementById('mdSavingHistoryTitle').textContent = 'Riwayat: ' + savingName;
+  document.getElementById('mdSavingHistoryPanel').style.display = 'flex';
+  mdFilterSavingHistory();
+}
+
+function mdCloseSavingHistory() {
+  document.getElementById('mdSavingHistoryPanel').style.display = 'none';
+  mdSwitchTab('savings');
+}
+
+function mdFilterSavingHistory() {
+  const from = document.getElementById('mdShFrom').value;
+  const to   = document.getElementById('mdShTo').value;
+  const txs  = ((_mdData && _mdData.recent_transactions) || [])
+    .filter(tx => {
+      const matchType  = tx.saving_type_id == _mdCurrentSavingId;
+      const matchFrom  = !from || tx.date_iso >= from;
+      const matchTo    = !to   || tx.date_iso <= to;
+      return matchType && matchFrom && matchTo;
+    });
+
+  const tbody = document.getElementById('mdShBody');
+  tbody.innerHTML = '';
+  if (!txs.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:#aaa;">Tidak ada data.</td></tr>';
+    return;
+  }
+  txs.forEach(tx => {
+    const isDebit = tx.type === 'DEBIT' || tx.type === 'WITHDRAWAL';
+    tbody.innerHTML += `<tr>
+      <td style="font-size:12px;color:#666;">${tx.date}</td>
+      <td style="font-size:12px;color:#888;">${tx.description}</td>
+      <td style="text-align:center;"><span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;background:${tx.status==='SUCCESS'?'#e8f8f0':'#fff9db'};color:${tx.status==='SUCCESS'?'#27ae60':'#f08c00'};">${tx.status}</span></td>
+      <td style="text-align:right;font-weight:800;color:${isDebit?'#eb5757':'#27ae60'};font-family:'JetBrains Mono',monospace;">
+        ${isDebit?'-':'+'}Rp ${(tx.amount||0).toLocaleString('id-ID')}</td>
+    </tr>`;
+  });
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function mdGetExportRows(mode) {
+  const tbody = document.getElementById(mode === 'saving' ? 'mdShBody' : 'mdTxBody');
+  const rows  = [];
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    if (cells.length > 1) {
+      rows.push(Array.from(cells).map(c => c.textContent.trim()));
+    }
+  });
+  return rows;
+}
+
+function mdExportExcel(mode) {
+  const m    = _mdData && _mdData.member;
+  const name = m ? m.name : 'Anggota';
+  const headers = mode === 'saving'
+    ? ['Tanggal','Keterangan','Status','Nominal']
+    : ['Tanggal','Jenis Simpanan','Keterangan','Status','Nominal'];
+  const rows = mdGetExportRows(mode);
+  const ws   = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb   = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Riwayat');
+  XLSX.writeFile(wb, `Riwayat_${name.replace(/ /g,'_')}_${mode}.xlsx`);
+}
+
+function mdExportPdf(mode) {
+  const m    = _mdData && _mdData.member;
+  const name = m ? m.name : 'Anggota';
+  const { jsPDF } = window.jspdf;
+  const doc  = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(14);
+  doc.text(`Riwayat ${mode === 'saving' ? document.getElementById('mdSavingHistoryTitle').textContent : 'Mutasi'} — ${name}`, 14, 14);
+  const headers = mode === 'saving'
+    ? [['Tanggal','Keterangan','Status','Nominal']]
+    : [['Tanggal','Jenis Simpanan','Keterangan','Status','Nominal']];
+  const rows = mdGetExportRows(mode);
+  doc.autoTable({ head: headers, body: rows, startY: 22, styles: { fontSize: 9 }, headStyles: { fillColor: [110,11,11] } });
+  doc.save(`Riwayat_${name.replace(/ /g,'_')}_${mode}.pdf`);
+}
+</script>

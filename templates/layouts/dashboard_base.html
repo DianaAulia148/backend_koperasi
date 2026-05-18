@@ -1,0 +1,1467 @@
+{% extends 'layouts/base.html' %}
+{% block content %}
+<script>
+  // Immediate theme and language check
+  (function () {
+    const theme = localStorage.getItem('theme');
+    if (theme === 'dark') document.body.classList.add('dark-theme');
+
+    const lang = localStorage.getItem('lang') || 'id';
+    document.documentElement.lang = lang;
+  })();
+</script>
+<style>
+  :root {
+    --primary-red: #6e0b0b;
+    --accent-red: #8b1010;
+    --success-green: #10b981;
+    --warning-orange: #f59e0b;
+    --sidebar-bg: #ffffff;
+    --content-bg: #f8fafc;
+    --card-bg: #ffffff;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --input-bg: #f1f5f9;
+    --header-bg: #ffffff;
+    --hover-bg: #fff5f5;
+    
+    /* Analytics Palette (Enterprise Maroon) */
+    --ent-primary: #4a0404;
+    --ent-secondary: #6e0b0b;
+    --ent-accent: #6e0b0b;
+    --ent-glass: rgba(255, 255, 255, 0.05);
+    --ent-glass-border: rgba(255, 255, 255, 0.1);
+  }
+
+  body.dark-theme {
+    --sidebar-bg: #0f172a;
+    --content-bg: #020617;
+    --card-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --input-bg: #0f172a;
+    --header-bg: #0f172a;
+    --hover-bg: #334155;
+  }
+
+  body {
+    background-color: var(--content-bg);
+    color: var(--text-main);
+    margin: 0;
+    overflow-x: hidden;
+    font-family: 'Inter', sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  /* DARK THEME SPECIFIC OVERRIDES */
+  body.dark-theme .metric-card:not(.dark) {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+  }
+
+  body.dark-theme .dashboard-card,
+  body.dark-theme .settings-card,
+  body.dark-theme .settings-nav,
+  body.dark-theme .table-container,
+  body.dark-theme .table-header {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+  }
+
+  body.dark-theme th {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+  }
+
+  body.dark-theme td {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+  }
+
+  body.dark-theme input,
+  body.dark-theme select,
+  body.dark-theme textarea {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-main);
+  }
+
+  body.dark-theme .list-item {
+    border-bottom-color: var(--border-color);
+  }
+
+  body.dark-theme .list-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  body.dark-theme .profile-name {
+    color: var(--text-main);
+  }
+
+  body.dark-theme .breadcrumb span {
+    color: var(--primary-red);
+  }
+
+  body.dark-theme .footer-shield {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+  }
+
+  body.dark-theme .nav-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  body.dark-theme .nav-item.active {
+    background: rgba(110, 11, 11, 0.2);
+  }
+
+  .dash-layout {
+    display: flex;
+    height: 100vh;
+  }
+
+  /* SIDEBAR (ENTERPRISE V2) */
+  .sidebar {
+    width: 280px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-shrink: 0;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.02);
+  }
+  
+  .sidebar.collapsed {
+    width: 80px;
+  }
+
+  .sidebar-header {
+    padding: 30px 25px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .logo-wrapper {
+    display: flex;
+    flex-direction: column;
+    transition: opacity 0.2s;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  
+  .sidebar.collapsed .logo-wrapper {
+    opacity: 0;
+    width: 0;
+  }
+
+  .logo-title {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--primary-red);
+    margin-bottom: 2px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  
+  .toggle-sidebar-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  
+  .toggle-sidebar-btn:hover {
+    color: var(--primary-red);
+    background: var(--hover-bg);
+  }
+
+  .sidebar-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px 0;
+  }
+  
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+  
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.1);
+    border-radius: 10px;
+  }
+
+  .nav-section {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 25px 25px 12px 25px;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+  }
+  
+  .sidebar.collapsed .nav-section {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    margin: 0 12px;
+    border-radius: 10px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+  }
+  
+  .nav-item-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .nav-item:hover, .nav-item.active {
+    color: var(--primary-red);
+    background: var(--hover-bg);
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 20%;
+    height: 60%;
+    width: 4px;
+    background: var(--primary-red);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+  
+  .sidebar.collapsed .nav-item-text,
+  .sidebar.collapsed .nav-arrow {
+    display: none;
+  }
+
+  /* Submenu */
+  .submenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: rgba(0,0,0,0.01);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  
+  .submenu.open {
+    max-height: 500px;
+  }
+  
+  body.dark-theme .submenu {
+    background: rgba(255,255,255,0.01);
+  }
+  
+  .submenu-item {
+    display: block;
+    padding: 10px 25px 10px 60px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  
+  .submenu-item:hover {
+    color: var(--primary-red);
+  }
+  
+  .nav-arrow {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.3s;
+  }
+  
+  .nav-item[aria-expanded="true"] .nav-arrow {
+    transform: rotate(180deg);
+  }
+
+  /* Badges */
+  .badge {
+    background: var(--primary-red);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: auto;
+    box-shadow: 0 2px 5px rgba(110, 11, 11, 0.2);
+  }
+  
+  .badge.warning {
+    background: var(--warning-orange);
+    color: white;
+    box-shadow: 0 2px 5px rgba(245, 158, 11, 0.3);
+  }
+  
+  .sidebar.collapsed .badge {
+    position: absolute;
+    top: 5px;
+    right: 20px;
+    padding: 2px 4px;
+    font-size: 8px;
+  }
+
+  /* Tooltips for collapsed sidebar */
+  .sidebar-tooltip {
+    position: fixed;
+    background: var(--card-bg);
+    color: var(--text-main);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid var(--border-color);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 9999;
+    transition: opacity 0.2s;
+  }
+
+  /* Footer Profile */
+  .sidebar-footer {
+    padding: 20px 25px;
+    border-top: 1px solid var(--border-color);
+    background: var(--sidebar-bg);
+  }
+  
+  .profile-mini {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    padding: 10px;
+    border-radius: 12px;
+    transition: background 0.2s;
+    border: 1px solid transparent;
+  }
+  
+  .profile-mini:hover {
+    background: var(--input-bg);
+    border-color: var(--border-color);
+  }
+  
+  .pm-img-wrap {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  
+  .pm-img-wrap img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  
+  .pm-status {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background: #10b981;
+    border: 2px solid var(--sidebar-bg);
+    border-radius: 50%;
+  }
+  
+  .pm-info {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+  }
+  
+  .sidebar.collapsed .pm-info,
+  .sidebar.collapsed .logout-icon-btn {
+    display: none;
+  }
+  
+  .pm-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 2px;
+  }
+  
+  .pm-role {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  
+  .logout-icon-btn {
+    color: var(--text-muted);
+    transition: color 0.2s;
+  }
+  
+  .logout-icon-btn:hover {
+    color: var(--primary-red);
+  }
+
+  /* MAIN CONTENT */
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 35px 50px;
+    overflow-y: auto;
+  }
+
+  /* TOP HEADER */
+  .top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+  }
+
+  .page-info {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+  }
+
+  .page-info h2 {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--primary-red);
+    margin: 0;
+  }
+
+  .breadcrumb {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .breadcrumb span {
+    color: var(--primary-red);
+    font-weight: 800;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+  }
+
+  .action-group {
+    display: flex;
+    gap: 20px;
+    color: #8c8282;
+    border-right: 1px solid #e1d5d5;
+    padding-right: 30px;
+  }
+
+  .action-group svg {
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .action-group svg:hover {
+    color: #111;
+  }
+
+  .profile-box {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .profile-txt {
+    text-align: right;
+  }
+
+  .profile-name {
+    font-size: 13px;
+    font-weight: 800;
+    color: #111;
+  }
+
+  .profile-role {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  .profile-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #f3f3f3;
+    border: 2px solid white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .profile-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* FOOTER */
+  .footer-shield {
+    background: #fff;
+    padding: 15px 25px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 11px;
+    color: #666;
+    margin-top: 50px;
+    border: 1px solid var(--border-color);
+  }
+
+  .footer-shield strong {
+    color: #4863c4;
+  }
+
+
+
+  .metrics-grid,
+  .tables-grid,
+  .chart-section {
+    display: block;
+  }
+
+  /* RESPONSIVE DESIGN */
+  @media (max-width: 1024px) {
+    .sidebar { width: 80px; }
+    .nav-item-text, .nav-section, .logo-wrapper, .pm-info, .badge { display: none; }
+    .nav-item { justify-content: center; padding: 15px 0; }
+    .nav-item-left { margin: 0; }
+    .sidebar-header { padding: 20px 0; justify-content: center; }
+    .toggle-sidebar-btn { display: none; }
+    .main-content { padding: 20px; }
+  }
+
+  @media (max-width: 768px) {
+    .dash-layout { flex-direction: column; height: auto; }
+    .sidebar { 
+      position: fixed; 
+      left: -280px; 
+      top: 0; 
+      bottom: 0; 
+      width: 280px !important; 
+      transition: left 0.3s ease; 
+      box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+    }
+    .sidebar.mobile-open { left: 0; }
+    .sidebar.mobile-open .nav-item-text, 
+    .sidebar.mobile-open .nav-section, 
+    .sidebar.mobile-open .logo-wrapper, 
+    .sidebar.mobile-open .pm-info,
+    .sidebar.mobile-open .badge { display: flex; }
+    
+    .mobile-header { 
+      display: flex !important; 
+      background: var(--header-bg); 
+      padding: 15px 20px; 
+      align-items: center; 
+      justify-content: space-between; 
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    
+    .nav-item { justify-content: flex-start !important; padding: 12px 25px !important; }
+    .nav-item-left { margin-right: 15px !important; }
+    
+    .main-content { padding: 15px; margin-top: 0; }
+    .main-header { display: none; } /* Main header often redundant on mobile with mobile-header */
+    
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 95;
+      backdrop-filter: blur(4px);
+    }
+    .sidebar-overlay.active { display: block; }
+  }
+  /* ENTERPRISE SMART TABLE STANDARDS */
+  .ent-table-container { 
+    background: #fff; border: 2px solid #b71c1c; border-radius: 24px; overflow: visible; 
+    box-shadow: 0 15px 45px rgba(0,0,0,0.06); margin-top: 20px;
+    display: flex; flex-direction: column;
+  }
+  .ent-table-header { 
+    padding: 25px 30px; border-bottom: 1px solid #f3efec; display: flex; 
+    justify-content: space-between; align-items: center; background: #fff;
+    border-radius: 24px 24px 0 0;
+  }
+  .ent-search-wrapper { position: relative; width: 320px; }
+  .ent-search-input { 
+    width: 100%; padding: 12px 15px 12px 42px; border: 1px solid #ddd; 
+    border-radius: 12px; font-size: 0.9rem; outline: none; transition: all 0.2s;
+  }
+  .ent-search-input:focus { border-color: #6e0b0b; box-shadow: 0 0 0 4px rgba(110, 11, 11, 0.05); }
+  .ent-search-icon { position: absolute; left: 14px; top: 12px; color: #888; }
+  
+  .ent-table-wrapper { width: 100%; overflow: visible; }
+  .ent-table { width: 100%; border-collapse: collapse; table-layout: auto; border: 1px solid #b71c1c; }
+  .ent-table th, .ent-table td { padding: 18px 25px; border: 1px solid #dcdcdc; font-size: 0.95rem; color: #333; }
+  .ent-table th { 
+    background: #6e0b0b; color: white !important; font-weight: 700; 
+    text-transform: uppercase; font-size: 0.75rem; text-align: left; 
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .ent-table tr:hover td { background: #f9f9f9; }
+  .ent-table td.amount { font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: right; }
+  
+  .ent-pagination { 
+    padding: 15px 25px; border-top: 1px solid #eee; display: flex; 
+    justify-content: space-between; align-items: center; background: #fff;
+    border-radius: 0 0 24px 24px;
+  }
+  .ent-btn-page { 
+    background: #fff; border: 1px solid #ddd; padding: 8px 16px; border-radius: 8px; 
+    cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #555; transition: all 0.2s;
+  }
+  .ent-btn-page:hover:not(:disabled) { background: #6e0b0b; color: #fff; border-color: #6e0b0b; }
+  .ent-btn-page:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ent-page-indicators { display: flex; gap: 6px; }
+  .ent-page-num { 
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; 
+    border-radius: 8px; cursor: pointer; font-weight: 700; border: 1px solid transparent;
+  }
+  .ent-page-num.active { background: #6e0b0b; color: #fff; }
+  .ent-page-num:hover:not(.active) { border-color: #6e0b0b; color: #6e0b0b; }
+</style>
+
+<script>
+class SmartTable {
+    constructor(tableId, options = {}) {
+        this.table = document.getElementById(tableId);
+        this.tbody = this.table.querySelector('tbody');
+        this.rows = Array.from(this.tbody.querySelectorAll('tr:not(.no-data-row)'));
+        this.perPage = options.perPage || 10;
+        this.currentPage = 1;
+        this.filteredRows = [...this.rows];
+        
+        this.searchInput = document.getElementById(options.searchId);
+        this.paginationContainer = document.getElementById(options.paginationId);
+        
+        this.init();
+    }
+
+    init() {
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', () => this.handleSearch());
+        }
+        this.updateTable();
+    }
+
+    handleSearch() {
+        const query = this.searchInput.value.toLowerCase();
+        this.filteredRows = this.rows.filter(row => {
+            return row.innerText.toLowerCase().includes(query);
+        });
+        this.currentPage = 1;
+        this.updateTable();
+    }
+
+    updateTable() {
+        const start = (this.currentPage - 1) * this.perPage;
+        const end = start + this.perPage;
+
+        // Hide all rows
+        this.rows.forEach(row => row.style.display = 'none');
+        
+        // Show filtered and paginated rows
+        const pageRows = this.filteredRows.slice(start, end);
+        pageRows.forEach(row => row.style.display = 'table-row');
+
+        this.renderPagination();
+        
+        // Show/Hide "No Data" row if exists
+        const noDataRow = this.tbody.querySelector('.no-data-row');
+        if (noDataRow) {
+            noDataRow.style.display = this.filteredRows.length === 0 ? 'table-row' : 'none';
+        }
+        
+        // Update counts
+        const countSpan = document.getElementById('ent-count-info');
+        if (countSpan) {
+            const total = this.filteredRows.length;
+            const actualEnd = Math.min(end, total);
+            const actualStart = total > 0 ? start + 1 : 0;
+            countSpan.innerText = `Showing ${actualStart} - ${actualEnd} of ${total}`;
+        }
+    }
+
+    renderPagination() {
+        if (!this.paginationContainer) return;
+        
+        const totalPages = Math.ceil(this.filteredRows.length / this.perPage);
+        const container = this.paginationContainer;
+        container.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Prev Button
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'ent-btn-page';
+        prevBtn.innerText = 'Prev';
+        prevBtn.disabled = this.currentPage === 1;
+        prevBtn.onclick = () => { this.currentPage--; this.updateTable(); };
+        container.appendChild(prevBtn);
+
+        // Page Indicators
+        const indicators = document.createElement('div');
+        indicators.className = 'ent-page-indicators';
+        
+        let startPage = Math.max(1, this.currentPage - 1);
+        let endPage = Math.min(totalPages, startPage + 2);
+        if (endPage - startPage < 2) startPage = Math.max(1, endPage - 2);
+
+        for (let i = startPage; i <= endPage; i++) {
+            const num = document.createElement('div');
+            num.className = `ent-page-num ${i === this.currentPage ? 'active' : ''}`;
+            num.innerText = i;
+            num.onclick = () => { this.currentPage = i; this.updateTable(); };
+            indicators.appendChild(num);
+        }
+        container.appendChild(indicators);
+
+        // Next Button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'ent-btn-page';
+        nextBtn.innerText = 'Next';
+        nextBtn.disabled = this.currentPage === totalPages;
+        nextBtn.onclick = () => { this.currentPage++; this.updateTable(); };
+        container.appendChild(nextBtn);
+    }
+}
+</script>
+
+{% block extra_css %}{% endblock %}
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
+
+<div class="mobile-header" style="display: none;">
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <button class="toggle-sidebar-btn" onclick="toggleMobileSidebar()" style="display: block;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    <div class="logo-title" style="font-size: 16px; color: var(--primary-red);">HARKAT <span style="font-weight: 400;">ENTERPRISE</span></div>
+  </div>
+  <div class="profile-mini" style="padding: 0; border: none; background: none;">
+    <div class="pm-img-wrap" style="width: 32px; height: 32px;">
+      <img src="https://ui-avatars.com/api/?name={{ current_user.full_name }}&background=6e0b0b&color=fff" alt="">
+    </div>
+  </div>
+</div>
+
+<div class="dash-layout">
+  <!-- SIDEBAR (ENTERPRISE V2) -->
+  <aside class="sidebar" id="app-sidebar">
+    <div class="sidebar-header">
+      <div class="logo-wrapper">
+        <span class="logo-title">HARKAT <span style="font-weight: 400; color: var(--accent-red);">CO-OP</span></span>
+        <span class="logo-sub">ENTERPRISE SYSTEM</span>
+      </div>
+      <button class="toggle-sidebar-btn" id="toggle-sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="sidebar-scroll">
+      <ul class="nav-menu">
+        <a href="/dashboard" class="nav-item {% if active_menu == 'dashboard' %}active{% endif %}" data-tooltip="Dashboard">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">dashboard</i>
+            <span class="nav-item-text">Dashboard</span>
+          </div>
+        </a>
+
+        <div class="nav-section">ANGGOTA</div>
+        <a href="/registration" class="nav-item {% if active_menu == 'registration' %}active{% endif %}" data-tooltip="Antrean Pendaftaran">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">person_add</i>
+            <span class="nav-item-text">Antrean Pendaftaran</span>
+          </div>
+          {% if pending_registrations_count > 0 %}
+          <span class="badge warning">{{ pending_registrations_count }}</span>
+          {% endif %}
+        </a>
+        <a href="/members" class="nav-item {% if active_menu == 'members' %}active{% endif %}" data-tooltip="Manajemen Anggota">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">groups</i>
+            <span class="nav-item-text">Manajemen Anggota</span>
+          </div>
+        </a>
+
+        <div class="nav-section">KEUANGAN</div>
+        <a href="/finance/payroll" class="nav-item {% if active_menu == 'payroll' %}active{% endif %}" data-tooltip="Payroll Automation">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">account_balance_wallet</i>
+            <span class="nav-item-text">Payroll Automation</span>
+          </div>
+        </a>
+        <a href="/finance/savings" class="nav-item {% if active_menu == 'savings' %}active{% endif %}" data-tooltip="Simpanan">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">receipt_long</i>
+            <span class="nav-item-text">Simpanan</span>
+          </div>
+        </a>
+        <a href="/finance/withdrawals" class="nav-item {% if active_menu == 'withdrawals' %}active{% endif %}" data-tooltip="Penarikan">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">payments</i>
+            <span class="nav-item-text">Penarikan</span>
+          </div>
+          {% if pending_withdrawal_count > 0 %}
+          <span class="badge warning">{{ pending_withdrawal_count }}</span>
+          {% endif %}
+        </a>
+
+        <div class="nav-section">LAPORAN</div>
+        <a href="/reports/finance" class="nav-item {% if active_menu == 'finance_reports' %}active{% endif %}" data-tooltip="Laporan Keuangan">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">bar_chart</i>
+            <span class="nav-item-text">Laporan Keuangan</span>
+          </div>
+        </a>
+
+        <div class="nav-section">ANALYTICS</div>
+        <a href="/analytics/saving-trend" class="nav-item {% if active_menu == 'analytics_saving' %}active{% endif %}" data-tooltip="Trend Simpanan">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">trending_up</i>
+            <span class="nav-item-text">Trend Simpanan</span>
+          </div>
+        </a>
+        <a href="/analytics/economic-analysis" class="nav-item {% if active_menu == 'analytics_economic' %}active{% endif %}" data-tooltip="Analisis Ekonomi">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">insights</i>
+            <span class="nav-item-text">Analisis Ekonomi</span>
+          </div>
+        </a>
+        <a href="/analytics/payroll" class="nav-item {% if active_menu == 'analytics_payroll' %}active{% endif %}" data-tooltip="Payroll Analytics">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">analytics</i>
+            <span class="nav-item-text">Payroll Analytics</span>
+          </div>
+        </a>
+        <a href="/analytics/financial-insight" class="nav-item {% if active_menu == 'analytics_insight' %}active{% endif %}" data-tooltip="Financial Insight">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">lightbulb</i>
+            <span class="nav-item-text">Financial Insight</span>
+          </div>
+        </a>
+        <a href="/analytics/economic-correlation" class="nav-item {% if active_menu == 'analytics_correlation' %}active{% endif %}" data-tooltip="Economic Correlation">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">compare_arrows</i>
+            <span class="nav-item-text">Economic Correlation</span>
+          </div>
+        </a>
+
+        <div class="nav-section">DATA EKONOMI</div>
+        <a href="/economic/overview" class="nav-item {% if active_menu == 'economic_overview' %}active{% endif %}" data-tooltip="Overview Ekonomi">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">public</i>
+            <span class="nav-item-text">Overview</span>
+          </div>
+        </a>
+        <a href="/economic/inflation" class="nav-item {% if active_menu == 'economic_inflation' %}active{% endif %}" data-tooltip="Data Inflasi">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">show_chart</i>
+            <span class="nav-item-text">Inflasi</span>
+          </div>
+        </a>
+        <a href="/economic/bi-rate" class="nav-item {% if active_menu == 'economic_bi_rate' %}active{% endif %}" data-tooltip="BI Rate">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">account_balance</i>
+            <span class="nav-item-text">BI Rate</span>
+          </div>
+        </a>
+        <a href="/economic/jisdor" class="nav-item {% if active_menu == 'economic_jisdor' %}active{% endif %}" data-tooltip="Kurs JISDOR">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">currency_exchange</i>
+            <span class="nav-item-text">Kurs JISDOR</span>
+          </div>
+        </a>
+        <a href="/economic/umr" class="nav-item {% if active_menu == 'economic_umr' %}active{% endif %}" data-tooltip="Data UMR">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">fec_standard</i>
+            <span class="nav-item-text">Data UMR</span>
+          </div>
+        </a>
+
+        <div class="nav-section">SYSTEM</div>
+        <a href="/logs" class="nav-item {% if active_menu == 'activity_logs' or active_menu == 'logs' %}active{% endif %}" data-tooltip="Activity Logs">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">history</i>
+            <span class="nav-item-text">Activity Logs</span>
+          </div>
+        </a>
+
+        <div class="nav-section">PENGATURAN</div>
+        <div class="nav-item has-submenu" onclick="toggleSubmenu(this)" aria-expanded="false" data-tooltip="Pengaturan Sistem">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">settings</i>
+            <span class="nav-item-text">Pengaturan Sistem</span>
+          </div>
+          <i class="material-icons-round nav-arrow">expand_more</i>
+        </div>
+        <ul class="submenu">
+          <li><a href="/users" class="submenu-item">Pengguna & Role</a></li>
+          <li><a href="/settings" class="submenu-item">Pengaturan Sistem</a></li>
+        </ul>
+      </ul>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="profile-mini">
+        <div class="pm-img-wrap">
+          <img src="https://ui-avatars.com/api/?name={{ current_user.full_name if current_user else 'Admin' }}&background=6e0b0b&color=fff" alt="Avatar">
+          <div class="pm-status"></div>
+        </div>
+        <div class="pm-info">
+          <div class="pm-name">{{ current_user.full_name if current_user else 'Admin Utama' }}</div>
+          <div class="pm-role">{{ current_user.role if current_user and current_user.role else 'SUPERVISOR' }}</div>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" class="logout-icon-btn" title="Logout">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <div id="sidebar-tooltip" class="sidebar-tooltip"></div>
+
+  <!-- MAIN CONTENT -->  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <header class="top-header">
+      <div class="page-info">
+        <h2 data-i18n="title_{{ active_menu }}">{{ page_title | default('Dashboard Pengurus') }}</h2>
+        <div class="breadcrumb"><span data-i18n="home">Home</span> > <span style="color: var(--primary-red);" data-i18n="title_{{ active_menu }}">{{
+            page_title | default('Dashboard') }}</span></div>
+      </div>
+      <div class="header-right">
+        <div class="action-group">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <div class="profile-box">
+          <div class="profile-txt">
+            <div class="profile-name">{{ current_user.full_name if current_user else 'Admin Utama' }}</div>
+            <div class="profile-role"
+              data-i18n="role_{{ current_user.role if current_user and current_user.role else 'admin' }}">{{
+              current_user.role | upper if current_user and current_user.role else 'SUPER ADMINISTRATOR' }}</div>
+          </div>
+          <div class="profile-img">
+            <img
+              src="https://ui-avatars.com/api/?name={{ current_user.full_name if current_user else 'Admin' }}&background=6e0b0b&color=fff"
+              alt="Avatar">
+          </div>
+        </div>
+      </div>
+    </header>
+
+    {% block dashboard_content %}{% endblock %}
+
+    <div class="footer-shield">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color: var(--primary-red);">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      </svg>
+      <span data-i18n="footer_security">Semua transaksi dan data anggota dilindungi oleh enkripsi 256-bit.</span>
+      <strong style="color: var(--primary-red);">HARKAT SECURE</strong>
+    </div>
+    <script>
+      const translations = {
+        id: {
+          dashboard: "Dashboard",
+          members: "Manajemen Anggota",
+          users: "Pengurus & Pengawas",
+          registration: "Antrean Pendaftaran",
+          transactions: "Riwayat Transaksi",
+          reports: "Laporan Keuangan",
+          shu: "Pembagian SHU",
+          settings: "Pengaturan Sistem",
+          logout: "Keluar",
+          admin_console: "KONSOL ADMIN",
+          profile_settings: "Edit Profil",
+          coop_system: "Sistem Koperasi",
+          appearance_lang: "Tampilan & Bahasa",
+          notifications: "Notifikasi",
+          fullname: "Nama Lengkap",
+          username: "ID Pengguna",
+          email: "Email",
+          password: "Password Baru",
+          address: "Alamat Lengkap",
+          save_profile: "Simpan Profil",
+          interest_saving: "Bunga Simpanan (%)",
+          interest_loan: "Bunga Pinjaman (%)",
+          admin_fee: "Biaya Admin Bulanan",
+          withdraw_limit: "Limit Penarikan Harian",
+          mandatory_saving: "Simpanan Wajib",
+          min_balance: "Minimal Saldo",
+          save_config: "Simpan Konfigurasi",
+          app_lang: "Bahasa Aplikasi",
+          timezone: "Zona Waktu",
+          dark_mode: "Mode Gelap (Dark Mode)",
+          dark_mode_desc: "Ubah tampilan aplikasi menjadi gelap untuk kenyamanan mata.",
+          apply_changes: "Terapkan Perubahan",
+          reg_email: "Email Pendaftaran",
+          reg_email_desc: "Dapatkan email setiap ada anggota baru yang mendaftar.",
+          large_tx_alert: "Peringatan Transaksi Besar",
+          large_tx_desc: "Beritahu saya jika ada penarikan di atas limit normal.",
+          monthly_report: "Laporan Keuangan Bulanan",
+          monthly_report_desc: "Kirim rekapitulasi SHU dan laporan kas setiap akhir bulan.",
+          save_notif: "Simpan Notifikasi",
+          home: "Beranda",
+          footer_security: "Semua transaksi dan data anggota dilindungi oleh enkripsi 256-bit.",
+          title_dashboard: "Dashboard Pengurus",
+          title_members: "Manajemen Anggota",
+          title_users: "Pengurus & Pengawas",
+          title_registration: "Antrean Pendaftaran",
+          title_transactions: "Riwayat Transaksi",
+          title_reports: "Laporan Keuangan",
+          title_shu: "Pembagian SHU",
+          title_settings: "Pengaturan Sistem",
+          title_logs: "Log Aktivitas",
+          role_admin: "ADMIN UTAMA",
+          role_supervisor: "PENGAWAS",
+          role_teller: "PETUGAS TELLER",
+          welcome_back: "Selamat Datang",
+          welcome_desc: "Kelola ekosistem ekonomi koperasi Anda dengan kendali penuh.",
+          total_members: "Total Anggota",
+          total_cash: "Total Kas Koperasi",
+          mandatory_savings: "Simpanan Wajib",
+          current_shu: "SHU Tahun Berjalan",
+          recent_activity: "Aktivitas Terkini",
+          view_all: "Lihat Semua",
+          financial_growth: "Grafik Pertumbuhan",
+          transaction_summary: "Ringkasan Transaksi",
+          active_now: "Aktif Sekarang",
+          total_growth: "Total Pertumbuhan",
+          system_status: "Sistem",
+          total_savings: "Total Simpanan",
+          total_withdrawals: "Total Penarikan",
+          co_op_balance: "Saldo Koperasi",
+          member_growth: "Pertumbuhan Anggota",
+          last_6_months: "6 Bulan Terakhir",
+          recent_transactions: "Transaksi Terbaru",
+          volume_tx: "Volume Transaksi",
+          deposit_withdraw: "Setor vs Tarik",
+          verification_queue: "Antrean Verifikasi",
+          recent_tx: "Transaksi Terakhir",
+          no_new_queue: "Belum ada antrean baru saat ini.",
+          no_tx_today: "Tidak ada transaksi hari ini.",
+          history: "Riwayat",
+          total_all_members: "Total Seluruh Anggota",
+          active_members: "Anggota Aktif",
+          passive_members: "Anggota Pasif",
+          non_active: "Non-Aktif",
+          search_member_placeholder: "Cari Nama Anggota...",
+          export_list: "Ekspor Daftar",
+          filter_status: "Filter Status",
+          add_member: "Tambah Anggota",
+          table_no: "NO",
+          table_joined: "BERGABUNG",
+          table_id: "ID ANGGOTA",
+          table_name: "NAMA LENGKAP",
+          table_group: "GRUP",
+          table_gender: "JENIS KELAMIN",
+          table_contact: "KONTAK",
+          table_type: "JENIS ANGGOTA",
+          table_limit: "LIMIT",
+          table_status: "STATUS",
+          whatsapp_active: "WhatsApp Aktif",
+          pagination_showing: "Menampilkan",
+          pagination_to: "sampai",
+          pagination_of: "dari",
+          pagination_entries: "data",
+          pending_verification: "Menunggu Verifikasi",
+          trust_score: "Skor Kepercayaan",
+          member_list_title: "Daftar Anggota",
+          search_placeholder: "Cari nama, ID, atau email...",
+          full_address: "Alamat Lengkap",
+          dob: "Tanggal Lahir",
+          email_address: "Alamat Email",
+          no_data_found: "Tidak ada data anggota ditemukan.",
+          showing_pagination: "Menampilkan",
+          total_staff: "Total Pengurus",
+          active_staff: "Aktif",
+          inactive_staff: "Non-Aktif",
+          system_administration: "Sistem Administrasi",
+          active_accounts: "Akun Beroperasi",
+          access_disabled: "Akses Dinonaktifkan",
+          user_list_title: "Daftar Pengguna",
+          search_user_placeholder: "Cari nama, email, ID...",
+          all_positions: "Semua Jabatan",
+          all_status: "Semua Status",
+          add_user: "Tambah Pengguna",
+          table_emp_id: "ID PEGAWAI",
+          table_position: "JABATAN",
+          table_access_role: "ROLE AKSES",
+          table_reg_date: "TANGGAL DAFTAR",
+          pos_chairman: "Ketua",
+          pos_vice: "Wakil",
+          pos_secretary: "Sekretaris",
+          pos_treasurer: "Bendahara",
+          pos_supervisor: "Pengawas",
+          pos_staff: "Pegawai",
+          waiting_approval: "Menunggu Persetujuan",
+          rejected: "Ditolak",
+          approved_today: "Disetujui Hari Ini",
+          waiting_verification: "Menunggu verifikasi",
+          registration_rejected: "Pendaftaran ditolak",
+          successfully_registered: "Berhasil terdaftar",
+          registration_queue_title: "Antrean Pendaftaran",
+          requests_waiting: "Permohonan Menunggu",
+          table_request_date: "Tanggal Daftar",
+          table_member_info: "Info Anggota",
+          table_contact_info: "Info Kontak",
+          btn_approve: "Setujui",
+          btn_reject: "Tolak",
+          no_registration_queue: "Tidak ada antrean pendaftaran.",
+          module_under_dev: "Modul Dalam Pengembangan",
+          features_coming_soon: "Fitur spesifik untuk manajemen",
+          will_be_enabled_soon: "akan diaktifkan menyusul."
+        },
+        en: {
+          dashboard: "Dashboard",
+          members: "Member Management",
+          users: "Staff & Supervisors",
+          registration: "Registration Queue",
+          transactions: "Transaction History",
+          reports: "Financial Reports",
+          shu: "SHU Distribution",
+          settings: "System Settings",
+          logout: "Logout",
+          admin_console: "ADMIN CONSOLE",
+          profile_settings: "Edit Profile",
+          coop_system: "Cooperative System",
+          appearance_lang: "Appearance & Language",
+          notifications: "Notifications",
+          fullname: "Full Name",
+          username: "User ID",
+          email: "Email",
+          password: "New Password",
+          address: "Full Address",
+          save_profile: "Save Profile",
+          interest_saving: "Deposit Interest (%)",
+          interest_loan: "Loan Interest (%)",
+          admin_fee: "Monthly Admin Fee",
+          withdraw_limit: "Daily Withdrawal Limit",
+          mandatory_saving: "Mandatory Savings",
+          min_balance: "Minimum Balance",
+          save_config: "Save Configuration",
+          app_lang: "App Language",
+          timezone: "Timezone",
+          dark_mode: "Dark Mode",
+          dark_mode_desc: "Change application appearance to dark for eye comfort.",
+          apply_changes: "Apply Changes",
+          reg_email: "Registration Email",
+          reg_email_desc: "Get an email every time a new member registers.",
+          large_tx_alert: "Large Transaction Alert",
+          large_tx_desc: "Notify me if there is a withdrawal above the normal limit.",
+          monthly_report: "Monthly Financial Report",
+          monthly_report_desc: "Send SHU recapitulation and cash report at the end of every month.",
+          save_notif: "Save Notifications",
+          home: "Home",
+          footer_security: "All transactions and member data are protected by 256-bit encryption.",
+          title_dashboard: "Admin Dashboard",
+          title_members: "Member Management",
+          title_users: "Staff & Supervisors",
+          title_registration: "Registration Queue",
+          title_transactions: "Transaction History",
+          title_reports: "Financial Reports",
+          title_shu: "SHU Distribution",
+          title_settings: "System Settings",
+          title_logs: "Activity Logs",
+          role_admin: "SUPER ADMINISTRATOR",
+          role_supervisor: "SUPERVISOR",
+          role_teller: "TELLER OFFICER",
+          welcome_back: "Welcome Back",
+          welcome_desc: "Manage your cooperative economic ecosystem with full control.",
+          total_members: "Total Members",
+          total_cash: "Total Cooperative Cash",
+          mandatory_savings: "Mandatory Savings",
+          current_shu: "Current Year SHU",
+          recent_activity: "Recent Activity",
+          view_all: "View All",
+          financial_growth: "Growth Chart",
+          transaction_summary: "Transaction Summary",
+          active_now: "Active Now",
+          total_growth: "Total Growth",
+          system_status: "System",
+          total_savings: "Total Savings",
+          total_withdrawals: "Total Withdrawals",
+          co_op_balance: "Cooperative Balance",
+          member_growth: "Member Growth",
+          last_6_months: "Last 6 Months",
+          recent_transactions: "Recent Transactions",
+          volume_tx: "Transaction Volume",
+          deposit_withdraw: "Deposit vs Withdraw",
+          verification_queue: "Verification Queue",
+          recent_tx: "Recent Transactions",
+          no_new_queue: "No new verification requests at this time.",
+          no_tx_today: "No transactions today.",
+          history: "History",
+          total_all_members: "Total All Members",
+          active_members: "Active Members",
+          passive_members: "Passive Members",
+          non_active: "Non-Active",
+          search_member_placeholder: "Search member name...",
+          export_list: "Export List",
+          filter_status: "Filter Status",
+          add_member: "Add Member",
+          table_no: "NO",
+          table_joined: "JOINED",
+          table_id: "MEMBER ID",
+          table_name: "FULL NAME",
+          table_group: "GROUP",
+          table_gender: "GENDER",
+          table_contact: "CONTACT",
+          table_type: "MEMBER TYPE",
+          table_limit: "LIMIT",
+          table_status: "STATUS",
+          whatsapp_active: "WhatsApp Active",
+          pagination_showing: "Showing",
+          pagination_to: "to",
+          pagination_of: "of",
+          pagination_entries: "entries",
+          pending_verification: "Pending Verification",
+          trust_score: "Trust Score",
+          member_list_title: "Member List",
+          search_placeholder: "Search name, ID, or email...",
+          full_address: "Full Address",
+          dob: "Date of Birth",
+          email_address: "Email Address",
+          no_data_found: "No member data found.",
+          showing_pagination: "Showing",
+          total_staff: "Total Staff",
+          active_staff: "Active",
+          inactive_staff: "Inactive",
+          system_administration: "System Administration",
+          active_accounts: "Operating Accounts",
+          access_disabled: "Access Disabled",
+          user_list_title: "User List",
+          search_user_placeholder: "Search name, email, ID...",
+          all_positions: "All Positions",
+          all_status: "All Status",
+          add_user: "Add User",
+          table_emp_id: "EMPLOYEE ID",
+          table_position: "POSITION",
+          table_access_role: "ACCESS ROLE",
+          table_reg_date: "REG. DATE",
+          pos_chairman: "Chairman",
+          pos_vice: "Vice Chairman",
+          pos_secretary: "Secretary",
+          pos_treasurer: "Treasurer",
+          pos_supervisor: "Supervisor",
+          pos_staff: "Staff",
+          waiting_approval: "Waiting Approval",
+          rejected: "Rejected",
+          approved_today: "Approved Today",
+          waiting_verification: "Waiting for verification",
+          registration_rejected: "Registration rejected",
+          successfully_registered: "Successfully registered",
+          registration_queue_title: "Registration Queue",
+          requests_waiting: "Requests Waiting",
+          table_request_date: "Request Date",
+          table_member_info: "Member Info",
+          table_contact_info: "Contact Info",
+          btn_approve: "Approve",
+          btn_reject: "Reject",
+          no_registration_queue: "No registration queue found.",
+          module_under_dev: "Module Under Development",
+          features_coming_soon: "Specific features for management of",
+          will_be_enabled_soon: "will be enabled soon."
+        }
+      };
+
+      function translatePage(lang) {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          const key = el.getAttribute('data-i18n');
+          if (translations[lang] && translations[lang][key]) {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+              el.placeholder = translations[lang][key];
+            } else {
+              el.innerText = translations[lang][key];
+            }
+          }
+        });
+        document.documentElement.lang = lang;
+      }
+
+      // Run on load
+      window.addEventListener('DOMContentLoaded', () => {
+        const savedLang = localStorage.getItem('lang') || 'id';
+        translatePage(savedLang);
+      });
+    </script>
+    
+    <script>
+      // Sidebar UI Logic
+      document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('app-sidebar');
+        const toggleBtn = document.getElementById('toggle-sidebar');
+        const tooltip = document.getElementById('sidebar-tooltip');
+        
+        // Restore collapse state
+        const isCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+        if (isCollapsed) sidebar.classList.add('collapsed');
+
+        // Toggle Event
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed'));
+            // Close all submenus when collapsing
+            if (sidebar.classList.contains('collapsed')) {
+              document.querySelectorAll('.submenu').forEach(el => el.classList.remove('open'));
+              document.querySelectorAll('.has-submenu').forEach(el => el.setAttribute('aria-expanded', 'false'));
+            }
+          });
+        }
+
+        // Tooltip logic for collapsed state
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+          item.addEventListener('mouseenter', (e) => {
+            if (sidebar.classList.contains('collapsed')) {
+              const text = item.getAttribute('data-tooltip');
+              if (text) {
+                const rect = item.getBoundingClientRect();
+                tooltip.textContent = text;
+                tooltip.style.opacity = '1';
+                tooltip.style.top = `${rect.top + (rect.height / 2) - 15}px`;
+                tooltip.style.left = `${rect.right + 10}px`;
+              }
+            }
+          });
+          item.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = '0';
+          });
+        });
+      });
+
+      // Accordion Submenu Toggle
+      function toggleSubmenu(element) {
+        const sidebar = document.getElementById('app-sidebar');
+        if (sidebar.classList.contains('collapsed')) {
+          // Auto expand sidebar if clicked on submenu while collapsed
+          sidebar.classList.remove('collapsed');
+          localStorage.setItem('sidebar_collapsed', 'false');
+        }
+        
+        const isExpanded = element.getAttribute('aria-expanded') === 'true';
+        element.setAttribute('aria-expanded', !isExpanded);
+        const submenu = element.nextElementSibling;
+        if (submenu && submenu.classList.contains('submenu')) {
+          submenu.classList.toggle('open');
+        }
+      }
+
+      function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('mobile-open');
+        overlay.classList.toggle('active');
+      }
+    </script>
+</body>
+
+    </html>
+
+
+    {% endblock %}

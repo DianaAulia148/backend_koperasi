@@ -1,0 +1,189 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'balances' %}
+{% set page_title = 'Saldo Simpanan' %}
+
+{% block dashboard_content %}
+<div class="balances-container">
+    <!-- A. Summary Cards -->
+    <div class="analytics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">account_balance</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Simpanan Wajib</div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; margin: 8px 0;">Rp {{ "{:,.0f}".format(stats.wajib.total or 0).replace(',', '.') }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">{{ stats.wajib.count }} Anggota</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">volunteer_activism</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Simpanan Sukarela</div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; margin: 8px 0;">Rp {{ "{:,.0f}".format(stats.sukarela.total or 0).replace(',', '.') }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">{{ stats.sukarela.count }} Anggota</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">lock</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Simpanan Pokok</div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; margin: 8px 0;">Rp {{ "{:,.0f}".format(stats.pokok.total or 0).replace(',', '.') }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">{{ stats.pokok.count }} Anggota</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.2);">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">monetization_on</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Total Saldo</div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; margin: 8px 0;">Rp {{ "{:,.0f}".format(stats.total_all or 0).replace(',', '.') }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Financial Health: Excellent</div>
+        </div>
+    </div>
+
+    <div class="charts-row" style="display: grid; grid-template-columns: 2fr 1fr; gap: 30px; margin-bottom: 30px;">
+        <div class="dashboard-card" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+            <h3 style="margin: 0 0 25px 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Growth Analysis (6 Months)</h3>
+            <div class="chart-body" style="height: 300px; position: relative;">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+        <div class="dashboard-card" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+            <h3 style="margin: 0 0 25px 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Balance Distribution</h3>
+            <div class="chart-body" style="height: 300px; position: relative;">
+                <canvas id="distChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+        <div class="ent-table-header" style="padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3efec;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Realtime Member Balances</h3>
+                <div class="ent-search-wrapper">
+                    <i class="material-icons-round ent-search-icon">search</i>
+                    <input type="text" id="balances-search" class="ent-search-input" placeholder="Cari nama atau ID anggota...">
+                </div>
+            </div>
+        </div>
+        <div class="ent-table-wrapper">
+            <table class="ent-table" id="balances-table">
+                <thead>
+                    <tr>
+                        <th>ANGGOTA</th>
+                        <th style="text-align: right;">WAJIB</th>
+                        <th style="text-align: right;">SUKARELA</th>
+                        <th style="text-align: right;">POKOK</th>
+                        <th style="text-align: right;">TOTAL SALDO</th>
+                        <th style="text-align: center;">TERAKHIR AKTIF</th>
+                        <th style="text-align: center;">AKSI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Mock data based on template -->
+                    {% for mb in member_balances %}
+                    <tr>
+                        <td>
+                            <div style="font-weight: 700; color: #111;">{{ mb.name }}</div>
+                            <div style="font-size: 11px; color: #8c8282; font-weight: 600;">{{ mb.no }}</div>
+                        </td>
+                        <td style="text-align: right; color: #666;">Rp {{ "{:,.0f}".format(mb.wajib or 0).replace(',', '.') }}</td>
+                        <td style="text-align: right; color: #666;">Rp {{ "{:,.0f}".format(mb.sukarela or 0).replace(',', '.') }}</td>
+                        <td style="text-align: right; color: #666;">Rp {{ "{:,.0f}".format(mb.pokok or 0).replace(',', '.') }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #6e0b0b;">Rp {{ "{:,.0f}".format(mb.total or 0).replace(',', '.') }}</td>
+                        <td style="text-align: center;"><span style="font-size: 11px; background: #f3f3f3; padding: 4px 10px; border-radius: 6px; font-weight: 700; color: #8c8282;">{{ mb.last_active }}</span></td>
+                        <td style="text-align: center;">
+                            <button style="background: #fdf5f5; border: 1px solid #fce8e8; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #6e0b0b; cursor: pointer;">VIEW LEDGER</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="ent-pagination">
+            <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
+            <div id="balances-pagination"></div>
+        </div>
+    </div>
+</div>
+
+<script id="chart-data" type="application/json">
+{
+    "labels": {{ growth_data.labels | default([]) | tojson }},
+    "wajib": {{ growth_data.wajib | default([]) | tojson }},
+    "sukarela": {{ growth_data.sukarela | default([]) | tojson }},
+    "wajibTotal": {{ stats.wajib.total or 0 }},
+    "sukarelaTotal": {{ stats.sukarela.total or 0 }},
+    "pokokTotal": {{ stats.pokok.total or 0 }}
+}
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Init Table
+        new SmartTable('balances-table', {
+            searchId: 'balances-search',
+            paginationId: 'balances-pagination',
+            perPage: 10
+        });
+
+        const chartData = JSON.parse(document.getElementById('chart-data').textContent);
+
+        // Growth Chart
+        const ctxGrowth = document.getElementById('growthChart').getContext('2d');
+        new Chart(ctxGrowth, {
+            type: 'line',
+            data: {
+                labels: chartData.labels,
+                datasets: [{
+                    label: 'Simpanan Wajib',
+                    data: chartData.wajib,
+                    borderColor: '#6e0b0b',
+                    backgroundColor: 'rgba(110, 11, 11, 0.05)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3
+                }, {
+                    label: 'Simpanan Sukarela',
+                    data: chartData.sukarela,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'transparent',
+                    fill: false,
+                    tension: 0.4,
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { size: 11, weight: '700' } } } },
+                scales: {
+                    y: { beginAtZero: false, grid: { color: '#f3efec' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Distribution Chart
+        const ctxDist = document.getElementById('distChart').getContext('2d');
+        new Chart(ctxDist, {
+            type: 'doughnut',
+            data: {
+                labels: ['Wajib', 'Sukarela', 'Pokok'],
+                datasets: [{
+                    data: [chartData.wajibTotal, chartData.sukarelaTotal, chartData.pokokTotal],
+                    backgroundColor: ['#6e0b0b', '#f59e0b', '#8b1010'],
+                    borderWidth: 0,
+                    hoverOffset: 15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { size: 10, weight: '700' } } }
+                },
+                cutout: '70%'
+            }
+        });
+    });
+</script>
+{% endblock %}

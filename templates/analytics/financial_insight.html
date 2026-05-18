@@ -1,0 +1,99 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="insight-header-panel glass-card" style="padding: 40px; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; border-left: 5px solid #6e0b0b;">
+        <h1 style="font-size: 1.8rem; font-weight: 800; color: #111; margin-bottom: 10px;">Financial Insights Dashboard</h1>
+        <p style="color: #8c8282; font-weight: 500;">Analisis mendalam perilaku finansial anggota dan rekomendasi pertumbuhan.</p>
+    </div>
+
+    <div class="charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+        <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+            <div class="ent-table-header" style="padding: 25px 30px; border-bottom: 1px solid #f3efec;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Top 5 Anggota (Saldo Tertinggi)</h3>
+            </div>
+            <div class="ent-table-wrapper">
+                <table class="ent-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">RANK</th>
+                            <th>NAMA ANGGOTA</th>
+                            <th style="text-align: right;">TOTAL SALDO</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, balance in top_savers %}
+                        <tr>
+                            <td style="text-align: center; font-weight: 800; color: #6e0b0b;">#{{ loop.index }}</td>
+                            <td style="font-weight: 700; color: #111;">{{ name }}</td>
+                            <td style="text-align: right; font-weight: 800; color: #22c55e;">Rp {{ "{:,.0f}".format(balance).replace(',', '.') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="dashboard-card" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+            <h3 style="margin: 0 0 25px 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Simpanan Paling Populer</h3>
+            <div class="chart-body" style="height: 300px; position: relative;">
+                <canvas id="popularSavingChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="recommendation-card" style="background: #6e0b0b; border-radius: 24px; padding: 40px; color: white; box-shadow: 0 10px 30px rgba(110, 11, 11, 0.2);">
+        <h3 style="margin: 0 0 30px 0; font-size: 1.2rem; font-weight: 800;">Strategi & Rekomendasi Analytics</h3>
+        <div class="rec-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="rec-card" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="background: rgba(255,255,255,0.2); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                    <i class="material-icons-round">trending_up</i>
+                </div>
+                <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 700;">Optimasi Sukarela</h4>
+                <p style="font-size: 0.9rem; opacity: 0.8; line-height: 1.6;">Pertumbuhan Simpanan Sukarela meningkat 15%. Pertimbangkan promo bunga khusus untuk meningkatkan retensi saldo.</p>
+            </div>
+            <div class="rec-card" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="background: rgba(255,255,255,0.2); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                    <i class="material-icons-round">alarm_on</i>
+                </div>
+                <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 700;">Peak Withdrawal Time</h4>
+                <p style="font-size: 0.9rem; opacity: 0.8; line-height: 1.6;">Data menunjukkan penarikan tunai memuncak pada minggu ke-4 setiap bulan. Pastikan cadangan kas memadai.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('popularSavingChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pokok', 'Wajib', 'Sukarela', 'Pendidikan'],
+                datasets: [{
+                    data: [15, 45, 30, 10],
+                    backgroundColor: ['#6e0b0b', '#8b1010', '#10b981', '#f59e0b'],
+                    borderWidth: 0,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        position: 'right', 
+                        labels: { 
+                            color: '#64748b',
+                            usePointStyle: true,
+                            padding: 20,
+                            font: { size: 12, weight: '600' }
+                        } 
+                    } 
+                },
+                cutout: '70%'
+            }
+        });
+    });
+</script>
+{% endblock %}

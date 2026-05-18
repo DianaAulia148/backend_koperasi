@@ -1,0 +1,475 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'settings' %}
+{% set page_title = 'Setting' %}
+
+{% block extra_css %}
+<style>
+  :root {
+    --primary-color: #6e0b0b;
+    --text-label: #232323;
+    --input-border: #DFEAF2;
+  }
+
+  .settings-container {
+    background: var(--card-bg);
+    border-radius: 25px;
+    padding: 30px;
+    margin-top: 10px;
+    min-height: 700px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+  }
+
+  /* TABS */
+  .settings-tabs {
+    display: flex;
+    gap: 40px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 45px;
+    padding: 0 10px;
+    overflow: hidden; /* Hide overflow to remove scroll arrows */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .settings-tabs::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+  .tab-item {
+    padding: 12px 0;
+    color: var(--text-muted);
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    position: relative;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s;
+  }
+  .tab-item:hover { color: var(--primary-color); }
+  .tab-item.active {
+    color: var(--primary-color);
+    font-weight: 600;
+  }
+  .tab-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--primary-color);
+    border-radius: 10px 10px 0 0;
+  }
+
+  /* CONTENT LAYOUT */
+  .tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .tab-content.active {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 60px;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* PROFILE PHOTO SECTION */
+  .profile-photo-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 20px auto;
+  }
+  .profile-photo-circle {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #f0f0f0;
+    border: 5px solid white;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  }
+  .profile-photo-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .edit-photo-btn {
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 35px;
+    height: 35px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid white;
+    cursor: pointer;
+    transition: transform 0.2s;
+    z-index: 10;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+  .edit-photo-btn:hover { transform: scale(1.1); }
+
+  /* FORM GRID */
+  .settings-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px 30px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .form-group.full { grid-column: span 2; }
+  .form-group label {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-label);
+  }
+  body.dark-theme .form-group label { color: var(--text-main); }
+
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 14px 20px;
+    border-radius: 15px;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s;
+  }
+  
+  /* HIDE ALL NUMBER SPIN BUTTONS */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0;
+  }
+  input[type=number] {
+    -moz-appearance: textfield !important;
+  }
+  .form-group input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(110, 11, 11, 0.05);
+  }
+  body.dark-theme .form-group input { border-color: var(--border-color); }
+
+  /* SWITCH STYLE */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .switch-row:last-child { border-bottom: none; }
+  .switch-info h4 { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
+  .switch-info p { font-size: 12px; color: var(--text-muted); }
+
+  /* iOS STYLE SWITCHER */
+  .switcher {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+  }
+  .switcher input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+  }
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 18px; width: 18px;
+    left: 3px; bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+  input:checked + .slider { background-color: var(--primary-color); }
+  input:checked + .slider:before { transform: translateX(20px); }
+
+  /* SAVE BUTTON */
+  .save-btn-wrap {
+    grid-column: span 2;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+  }
+  .btn-save {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 14px 80px;
+    border-radius: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 10px 20px rgba(110, 11, 11, 0.2);
+  }
+  .btn-save:hover { background: #4a0404; transform: translateY(-2px); }
+  .btn-save:active { transform: scale(0.98); }
+
+  select {
+    background-repeat: no-repeat;
+    background-position: right 20px center;
+  }
+
+  /* SETTINGS RESPONSIVE */
+  @media (max-width: 992px) {
+    .tab-content.active { grid-template-columns: 1fr; gap: 30px; }
+    .settings-tabs { gap: 20px; overflow-x: auto; padding-bottom: 5px; }
+  }
+
+  @media (max-width: 768px) {
+    .settings-container { padding: 20px; }
+    .settings-form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: span 1; }
+    .btn-save { width: 100%; padding: 14px; }
+    .save-btn-wrap { justify-content: center; }
+  }
+</style>
+{% endblock %}
+
+{% block dashboard_content %}
+<div class="settings-container">
+  <!-- TABS NAVIGATION -->
+  <div class="settings-tabs">
+    <a class="tab-item active" onclick="switchTab('profile')" data-i18n="profile_settings">Edit Profil</a>
+    <a class="tab-item" onclick="switchTab('system')" data-i18n="coop_system">Sistem Koperasi</a>
+    <a class="tab-item" onclick="switchTab('appearance')" data-i18n="appearance_lang">Tampilan & Bahasa</a>
+    <a class="tab-item" onclick="switchTab('notification')" data-i18n="notifications">Notifikasi</a>
+  </div>
+
+  <!-- TAB 1: EDIT PROFILE -->
+  <div class="tab-content active" id="profile">
+    <div class="profile-photo-wrap">
+      <div class="profile-photo-circle">
+        <img src="https://ui-avatars.com/api/?name={{ current_user.full_name if current_user else 'Admin' }}&background=6e0b0b&color=fff" alt="Avatar">
+      </div>
+      <div class="edit-photo-btn" onclick="alert('Upload foto profil baru')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+      </div>
+    </div>
+    <form class="settings-form-grid" id="profileForm">
+      <div class="form-group">
+        <label data-i18n="fullname">Nama Lengkap</label>
+        <input type="text" id="profile_fullname" value="{{ current_user.full_name if current_user else '' }}" data-i18n="fullname">
+      </div>
+      <div class="form-group">
+        <label data-i18n="username">ID Pengguna</label>
+        <input type="text" id="profile_userid" value="{{ current_user.employee_id if current_user else '' }}" data-i18n="username" readonly>
+      </div>
+      <div class="form-group">
+        <label data-i18n="email">Email</label>
+        <input type="email" id="profile_email" value="{{ current_user.email if current_user else '' }}" data-i18n="email">
+      </div>
+      <div class="form-group">
+        <label data-i18n="password">Password Baru</label>
+        <input type="password" id="profile_password" data-i18n="password">
+      </div>
+      <div class="form-group full">
+        <label data-i18n="address">Alamat Lengkap</label>
+        <textarea id="profile_address" rows="3" data-i18n="address"></textarea>
+      </div>
+      <div class="save-btn-wrap">
+        <button type="button" class="btn-save" onclick="saveSettings('Profil')" data-i18n="save_profile">Simpan Profil</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB 2: SYSTEM CONFIG -->
+  <div class="tab-content" id="system">
+    <div class="profile-photo-wrap">
+      <div style="background: #fdf2f2; color: #6e0b0b; padding: 25px; border-radius: 30px;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+      </div>
+    </div>
+    <form class="settings-form-grid" id="systemForm">
+      <div class="form-group">
+        <label data-i18n="interest_saving">Bunga Simpanan (%)</label>
+        <input type="number" id="sys_interest_saving" step="0.1" value="0.5">
+      </div>
+      <div class="form-group">
+        <label data-i18n="interest_loan">Bunga Pinjaman (%)</label>
+        <input type="number" id="sys_interest_loan" step="0.1" value="1.2">
+      </div>
+      <div class="form-group">
+        <label data-i18n="admin_fee">Biaya Admin Bulanan</label>
+        <input type="text" id="sys_admin_fee" value="5000">
+      </div>
+      <div class="form-group">
+        <label data-i18n="withdraw_limit">Limit Penarikan Harian</label>
+        <input type="text" id="sys_withdraw_limit" value="10000000">
+      </div>
+      <div class="form-group">
+        <label data-i18n="mandatory_saving">Simpanan Wajib</label>
+        <input type="text" id="sys_mandatory_saving" value="50000">
+      </div>
+      <div class="form-group">
+        <label data-i18n="min_balance">Minimal Saldo</label>
+        <input type="text" id="sys_min_balance" value="100000">
+      </div>
+      <div class="save-btn-wrap">
+        <button type="button" class="btn-save" onclick="saveSettings('Sistem')" data-i18n="save_config">Simpan Konfigurasi</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB 3: APPEARANCE -->
+  <div class="tab-content" id="appearance">
+    <div class="profile-photo-wrap">
+      <div style="background: #eef2ff; color: #4338ca; padding: 25px; border-radius: 30px;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+      </div>
+    </div>
+    <form class="settings-form-grid" id="appearanceForm">
+      <div class="form-group">
+        <label data-i18n="app_lang">Bahasa Aplikasi</label>
+        <select id="langSelect">
+          <option value="id">Bahasa Indonesia</option>
+          <option value="en">English (US)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label data-i18n="timezone">Zona Waktu</label>
+        <select id="timezoneSelect">
+          <option selected>WIB (Jakarta) - GMT+7</option>
+          <option>WITA (Makassar) - GMT+8</option>
+          <option>WIT (Jayapura) - GMT+9</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <div class="switch-row">
+          <div class="switch-info">
+            <h4 data-i18n="dark_mode">Mode Gelap (Dark Mode)</h4>
+            <p data-i18n="dark_mode_desc">Ubah tampilan aplikasi menjadi gelap untuk kenyamanan mata.</p>
+          </div>
+          <label class="switcher">
+            <input type="checkbox" id="themeToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="save-btn-wrap">
+        <button type="button" class="btn-save" onclick="saveSettings('Tampilan')" data-i18n="apply_changes">Terapkan Perubahan</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB 4: NOTIFICATION -->
+  <div class="tab-content" id="notification">
+    <div class="profile-photo-wrap">
+      <div style="background: #fff7ed; color: #ea580c; padding: 25px; border-radius: 30px;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      </div>
+    </div>
+    <div class="settings-form-grid" style="display: block;" id="notificationForm">
+      <div class="switch-row">
+        <div class="switch-info">
+          <h4 data-i18n="reg_email">Email Pendaftaran</h4>
+          <p data-i18n="reg_email_desc">Dapatkan email setiap ada anggota baru yang mendaftar.</p>
+        </div>
+        <input type="checkbox" id="notif_reg_email" class="checkbox-modern" checked>
+      </div>
+      <div class="switch-row">
+        <div class="switch-info">
+          <h4 data-i18n="large_tx_alert">Peringatan Transaksi Besar</h4>
+          <p data-i18n="large_tx_desc">Beritahu saya jika ada penarikan di atas limit normal.</p>
+        </div>
+        <input type="checkbox" id="notif_large_tx" class="checkbox-modern" checked>
+      </div>
+      <div class="switch-row">
+        <div class="switch-info">
+          <h4 data-i18n="monthly_report">Laporan Keuangan Bulanan</h4>
+          <p data-i18n="monthly_report_desc">Kirim rekapitulasi SHU dan laporan kas setiap akhir bulan.</p>
+        </div>
+        <input type="checkbox" id="notif_monthly_report" class="checkbox-modern">
+      </div>
+      <div class="save-btn-wrap">
+        <button type="button" class="btn-save" onclick="saveSettings('Notifikasi')" data-i18n="save_notif">Simpan Notifikasi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tab Switching Functionality
+  function switchTab(tabId) {
+    // Update Tabs
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    // Update Content
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // Dark Mode Initialization
+  const themeToggle = document.getElementById('themeToggle');
+  if (localStorage.getItem('theme') === 'dark') {
+    themeToggle.checked = true;
+  }
+
+  // Language Selection Initialization
+  const langSelect = document.getElementById('langSelect');
+  const savedLang = localStorage.getItem('lang') || 'id';
+  langSelect.value = savedLang;
+
+  // Save Settings Function
+  function saveSettings(section) {
+    const btn = event.target;
+    const originalText = btn.innerText;
+    
+    btn.innerText = 'Menyimpan...';
+    btn.disabled = true;
+
+    // Process saving based on section
+    setTimeout(() => {
+      if (section === 'Tampilan') {
+        // Only apply theme and language on SAVE
+        const isDark = document.getElementById('themeToggle').checked;
+        const selectedLang = document.getElementById('langSelect').value;
+
+        // Apply theme
+        if (isDark) {
+          document.body.classList.add('dark-theme');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.body.classList.remove('dark-theme');
+          localStorage.setItem('theme', 'light');
+        }
+
+        // Apply language
+        localStorage.setItem('lang', selectedLang);
+        translatePage(selectedLang);
+      } else if (section === 'Profil') {
+          // Logic for profile save would go here
+      } else if (section === 'Sistem') {
+          // Logic for system config save would go here
+      } else if (section === 'Notifikasi') {
+          // Logic for notification save would go here
+      }
+
+      btn.innerText = originalText;
+      btn.disabled = false;
+      alert('Pengaturan ' + section + ' berhasil disimpan!');
+    }, 1000);
+  }
+</script>
+{% endblock %}

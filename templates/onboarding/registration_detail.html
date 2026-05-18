@@ -1,0 +1,549 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block dashboard_content %}
+<style>
+  /* MODERN ENTERPRISE SPLIT-SCREEN UI */
+  .onboarding-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 140px);
+    overflow: hidden;
+  }
+
+  .onboarding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0 20px 0;
+    flex-shrink: 0;
+  }
+
+  .onboarding-header h1 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #6e0b0b;
+    margin: 0;
+  }
+
+  .split-layout {
+    display: grid;
+    grid-template-columns: 400px 1fr 350px;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+    padding-bottom: 20px;
+  }
+
+  .panel {
+    background: #fff;
+    border-radius: 24px;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+  }
+
+  .panel-header {
+    padding: 20px 25px;
+    border-bottom: 1px solid #f3efec;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fafafa;
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #6e0b0b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-body {
+    padding: 25px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  /* LEFT: IMAGE VIEWER */
+  .doc-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+  }
+  .doc-tab {
+    padding: 8px 15px;
+    background: #f3efec;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6e0b0b;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .doc-tab.active { background: #6e0b0b; color: white; }
+
+  .viewer-outer {
+    flex: 1;
+    background: #1a1a1a;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .viewer-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .viewer-tools {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    padding: 8px 15px;
+    border-radius: 25px;
+    display: flex;
+    gap: 15px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .tool-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s;
+  }
+  .tool-btn:hover { transform: scale(1.2); }
+
+  /* CENTER: OCR RESULTS */
+  .ocr-field-group { margin-bottom: 18px; }
+  .ocr-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; margin-bottom: 8px; display: block; }
+  .ocr-input-wrap { position: relative; }
+  .ocr-input {
+    width: 100%;
+    padding: 12px 15px;
+    border-radius: 12px;
+    border: 2px solid #f3efec;
+    font-weight: 700;
+    color: #111;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .ocr-input:focus { border-color: #6e0b0b; }
+  .ocr-input[readonly] { background: #fafafa; border-color: #eee; color: #555; }
+
+  .conf-badge-pill {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+  .conf-high { background: #e8f8f0; color: #27ae60; }
+  .conf-med { background: #fff9db; color: #f08c00; }
+  .conf-low { background: #fff5f5; color: #6e0b0b; }
+
+  .fraud-alert {
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    padding: 15px 20px;
+    border-radius: 16px;
+    margin-bottom: 25px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    animation: pulse-border 2s infinite;
+  }
+  @keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(110, 11, 11, 0.2); }
+    70% { box-shadow: 0 0 0 10px rgba(110, 11, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(110, 11, 11, 0); }
+  }
+
+  /* RIGHT: WORKFLOW */
+  .workflow-btn-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
+  .btn-ent {
+    width: 100%;
+    padding: 14px;
+    border-radius: 15px;
+    border: none;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s;
+  }
+  .btn-ent-approve { background: #27ae60; color: white; }
+  .btn-ent-approve:hover { background: #219150; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(39,174,96,0.2); }
+  .btn-ent-edit { background: #fff; border: 1px solid #ddd; color: #444; }
+  .btn-ent-retry { background: #2f80ed; color: white; }
+  .btn-ent-reject { background: #6e0b0b; color: white; }
+
+  /* TIMELINE */
+  .ent-timeline { position: relative; padding-left: 35px; margin-top: 10px; }
+  .ent-timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
+    background: #eee;
+  }
+  .t-item { position: relative; margin-bottom: 25px; }
+  .t-dot {
+    position: absolute;
+    left: -28px;
+    top: 0;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid #6e0b0b;
+    z-index: 1;
+  }
+  .t-item.done .t-dot { background: #27ae60; border-color: #27ae60; }
+  .t-content { font-size: 0.85rem; font-weight: 700; color: #111; }
+  .t-desc { font-size: 0.75rem; color: #888; margin-top: 4px; }
+  .t-time { font-size: 10px; color: #bbb; margin-top: 2px; }
+
+  .audit-summary {
+    background: #fafafa;
+    border-radius: 16px;
+    padding: 15px;
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: auto;
+  }
+  .audit-line { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .audit-val { font-weight: 700; color: #111; }
+
+  /* REGISTRATION STATUS BOX styling to completely remove Jinja from style attributes and avoid VS Code validation errors */
+  .registration-status-box {
+    text-align: center;
+    padding: 20px;
+    border-radius: 20px;
+    margin-bottom: 25px;
+  }
+  .registration-status-box.approved {
+    background-color: #e8f8f0;
+  }
+  .registration-status-box.approved .status-icon,
+  .registration-status-box.approved .status-text {
+    color: #27ae60;
+  }
+  .registration-status-box.rejected {
+    background-color: #fff5f5;
+  }
+  .registration-status-box.rejected .status-icon,
+  .registration-status-box.rejected .status-text {
+    color: #6e0b0b;
+  }
+</style>
+
+<div class="onboarding-container">
+  <div class="onboarding-header">
+    <div>
+      <h1 data-i18n="detail_title">Detail Antrean Pendaftaran</h1>
+      <div style="font-size: 0.75rem; color: #888; margin-top: 5px;">
+        <span style="color: #6e0b0b; font-weight: 700;">HARKAT ONBOARDING</span> > {{ reg.registration_code or 'Pending' }}
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <a href="{{ url_for('onboarding.registration') }}" class="btn-ent btn-ent-edit" style="width: auto; padding: 10px 20px;">
+        <i class="material-icons-round">arrow_back</i> Back to Queue
+      </a>
+    </div>
+  </div>
+
+  <div class="split-layout">
+    
+    <!-- COLUMN 1: DOCUMENT PREVIEW -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="material-icons-round">photo_library</i> Preview Dokumen</div>
+        <div style="font-size: 10px; font-weight: 800; color: #aaa;">VIEWER V2.0</div>
+      </div>
+      <div class="panel-body">
+        <div class="doc-tabs">
+          <div class="doc-tab active" onclick="switchDoc('ktp')">E-KTP</div>
+          <div class="doc-tab" onclick="switchDoc('kartu')">Kartu Karyawan</div>
+          <div class="doc-tab" onclick="switchDoc('foto')">Pas Foto</div>
+          <div class="doc-tab" onclick="switchDoc('ttd')">Tanda Tangan</div>
+        </div>
+        
+        <div class="viewer-outer">
+          <img id="main-viewer" src="{{ doc_dict.get('KTP') or 'https://via.placeholder.com/600x400?text=No+KTP+Found' }}" class="viewer-img">
+          <div class="viewer-tools">
+            <button class="tool-btn" onclick="adjustZoom(0.2)"><i class="material-icons-round">zoom_in</i></button>
+            <button class="tool-btn" onclick="adjustZoom(-0.2)"><i class="material-icons-round">zoom_out</i></button>
+            <button class="tool-btn" onclick="adjustRotate(90)"><i class="material-icons-round">rotate_right</i></button>
+            <button class="tool-btn" onclick="toggleFullscreen()"><i class="material-icons-round">fullscreen</i></button>
+            <button class="tool-btn" onclick="alert('Crop feature coming soon in V2.1')"><i class="material-icons-round">crop</i></button>
+          </div>
+        </div>
+        
+        <div style="margin-top: 20px; padding: 15px; border-radius: 16px; background: #fafafa; border: 1px dashed #ddd;">
+           <div style="font-size: 0.7rem; font-weight: 800; color: #888; margin-bottom: 10px; text-transform: uppercase;">OCR Raw Extraction</div>
+           <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #555; line-height: 1.5; height: 100px; overflow-y: auto;">
+             {{ reg.ocr_raw_text or 'No raw text available from the latest scan.' }}
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMN 2: OCR RESULTS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="material-icons-round">document_scanner</i> Hasil Ekstraksi OCR AI</div>
+        <div id="save-status" style="font-size: 10px; font-weight: 800; color: #27ae60; display: none;">CHANGES SAVED</div>
+      </div>
+      <div class="panel-body">
+        
+        <!-- FRAUD / DUPLICATE ALERT -->
+        {% if reg.duplicate_check_status != 'CLEAN' %}
+        <div class="fraud-alert">
+          <div style="background: #6e0b0b; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i class="material-icons-round" style="color: white;">warning</i>
+          </div>
+          <div>
+            <div style="font-weight: 800; color: #6e0b0b; font-size: 0.9rem;">
+              {{ 'DUPLICATE NIK DETECTED' if reg.duplicate_check_status == 'DUPLICATED' else 'SUSPICIOUS DATA MATCH' }}
+            </div>
+            <div style="font-size: 0.75rem; color: #8c8282; margin-top: 2px;">
+              {{ 'NIK KTP ini terdeteksi sudah terdaftar pada anggota lain di sistem.' if reg.duplicate_check_status == 'DUPLICATED' else 'Data memiliki kemiripan tinggi dengan member existing.' }}
+              {% if duplicates %} <br><strong>Ref:</strong> {{ duplicates[0].full_name }} ({{ duplicates[0].member_no }}) {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <form id="ocr-update-form" action="{{ url_for('onboarding.registration_detail', reg_id=reg.id) }}" method="POST">
+          <div class="ocr-field-group">
+             <label class="ocr-label">Nomor Induk Kependudukan (NIK)</label>
+             <div class="ocr-input-wrap">
+               <input type="text" name="ocr_nik" class="ocr-input" value="{{ reg.ocr_nik or '' }}" readonly>
+               <span class="conf-badge-pill {% if (reg.ocr_confidence or 0) >= 0.8 %}conf-high{% elif (reg.ocr_confidence or 0) >= 0.6 %}conf-med{% else %}conf-low{% endif %}">
+                 {{ ((reg.ocr_confidence or 0) * 100)|round(1) }}%
+               </span>
+             </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="ocr-field-group">
+               <label class="ocr-label">Nama Lengkap (OCR)</label>
+               <input type="text" name="ocr_name" class="ocr-input" value="{{ reg.ocr_name or '' }}" readonly>
+            </div>
+            <div class="ocr-field-group">
+               <label class="ocr-label">NIP / ID Karyawan</label>
+               <input type="text" name="ocr_nip" class="ocr-input" value="{{ reg.ocr_nip or '' }}" readonly>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="ocr-field-group">
+               <label class="ocr-label">Jabatan / Unit</label>
+               <input type="text" name="ocr_jabatan" class="ocr-input" value="{{ reg.ocr_jabatan or '' }}" readonly>
+            </div>
+            <div class="ocr-field-group">
+               <label class="ocr-label">Gender</label>
+               <input type="text" name="ocr_gender" class="ocr-input" value="{{ reg.ocr_gender or '' }}" readonly>
+            </div>
+          </div>
+
+          <div class="ocr-field-group">
+             <label class="ocr-label">Tanggal Lahir</label>
+             <input type="text" name="ocr_birth_date" class="ocr-input" value="{{ reg.ocr_birth_date or '' }}" readonly>
+          </div>
+
+          <div class="ocr-field-group">
+             <label class="ocr-label">Alamat Domisili</label>
+             <textarea name="ocr_address" class="ocr-input" rows="3" readonly>{{ reg.ocr_address or '' }}</textarea>
+          </div>
+          
+          <input type="hidden" name="action" id="form-action" value="update">
+        </form>
+      </div>
+    </div>
+
+    <!-- COLUMN 3: APPROVAL WORKFLOW -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="material-icons-round">bolt</i> Approval Workflow</div>
+      </div>
+      <div class="panel-body">
+        
+        {% if reg.approval_status == 'PENDING' %}
+        <div class="workflow-btn-group">
+           <button class="btn-ent btn-ent-approve" onclick="submitDecision('APPROVE')">
+             <i class="material-icons-round">verified</i> Approve Anggota
+           </button>
+           <button class="btn-ent btn-ent-edit" id="edit-toggle-btn" onclick="toggleManualEdit()">
+             <i class="material-icons-round">edit</i> Edit Manual Data
+           </button>
+           <button class="btn-ent btn-ent-retry" onclick="alert('Retrying OCR Analysis...')">
+             <i class="material-icons-round">autorenew</i> Retry OCR Scan
+           </button>
+           <button class="btn-ent btn-ent-reject" onclick="submitDecision('REJECT')">
+             <i class="material-icons-round">block</i> Reject Pendaftaran
+           </button>
+        </div>
+        {% else %}
+        <div class="registration-status-box {% if reg.approval_status == 'APPROVED' %}approved{% else %}rejected{% endif %}">
+           <i class="material-icons-round status-icon" style="font-size: 3rem;">
+             {{ 'check_circle' if reg.approval_status == 'APPROVED' else 'cancel' }}
+           </i>
+           <div class="status-text" style="font-weight: 800; margin-top: 10px;">
+             {{ reg.approval_status }}
+           </div>
+           <div style="font-size: 0.75rem; color: #888; margin-top: 4px;">{{ reg.approved_at.strftime('%d %b %Y %H:%M') if reg.approved_at else '-' }}</div>
+        </div>
+        {% endif %}
+
+        <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin-bottom: 15px; text-transform: uppercase;">Timeline Onboarding</div>
+        <div class="ent-timeline">
+           <div class="t-item done">
+             <div class="t-dot"></div>
+             <div class="t-content">Dokumen Diunggah</div>
+             <div class="t-desc">Semua dokumen fisik diterima di sistem.</div>
+             <div class="t-time">{{ reg.created_at.strftime('%H:%M, %d %b %Y') }}</div>
+           </div>
+           <div class="t-item {{ 'done' if reg.ocr_confidence else '' }}">
+             <div class="t-dot"></div>
+             <div class="t-content">OCR Processing</div>
+             <div class="t-desc">AI mengekstraksi data dari KTP/ID. (Conf: {{ ((reg.ocr_confidence or 0)*100)|round(1) }}%)</div>
+           </div>
+           <div class="t-item {{ 'done' if reg.duplicate_check_status != 'PENDING' else '' }}">
+             <div class="t-dot"></div>
+             <div class="t-content">Duplicate Checking</div>
+             <div class="t-desc">Sistem memverifikasi keunikan NIK. (Status: {{ reg.duplicate_check_status }})</div>
+           </div>
+           {% for t in timeline %}
+           <div class="t-item done">
+             <div class="t-dot"></div>
+             <div class="t-content">{{ t.status }}</div>
+             <div class="t-desc">{{ t.notes }}</div>
+             <div class="t-time">{{ t.created_at.strftime('%H:%M, %d %b %Y') }}</div>
+           </div>
+           {% endfor %}
+        </div>
+
+        <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin: 25px 0 10px; text-transform: uppercase;">Activity Logs</div>
+        <div style="max-height: 200px; overflow-y: auto; background: #fafafa; border-radius: 12px; padding: 10px; border: 1px solid #eee;">
+           {% for log in activity_logs %}
+           <div style="font-size: 11px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee;">
+              <div style="font-weight: 800; color: #6e0b0b;">{{ log.user.full_name if log.user else 'System' }}</div>
+              <div style="color: #444;">{{ log.activity }}</div>
+              <div style="font-size: 10px; color: #aaa;">{{ log.created_at.strftime('%d/%m/%y %H:%M:%S') }}</div>
+           </div>
+           {% else %}
+           <div style="font-size: 11px; color: #aaa; text-align: center; padding: 20px;">No activity logs found.</div>
+           {% endfor %}
+        </div>
+
+        <div class="audit-summary">
+           <div class="audit-line"><span>Reviewer:</span> <span class="audit-val">{{ reg.approver.full_name if reg.approver else 'UNASSIGNED' }}</span></div>
+           <div class="audit-line"><span>Created:</span> <span class="audit-val">{{ reg.created_at.strftime('%d/%m/%y %H:%M') }}</span></div>
+           <div class="audit-line"><span>OCR Scan:</span> <span class="audit-val">{{ reg.ocr_processed_at.strftime('%d/%m/%y %H:%M') if reg.ocr_processed_at else '-' }}</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let zoom = 1;
+  let rotate = 0;
+  const viewer = document.getElementById('main-viewer');
+  
+  const docs = {
+    'ktp': "{{ doc_dict.get('KTP') or 'https://via.placeholder.com/600x400?text=KTP' }}",
+    'kartu': "{{ doc_dict.get('KARTU_KARYAWAN') or 'https://via.placeholder.com/600x400?text=ID+Card' }}",
+    'foto': "{{ doc_dict.get('PAS_FOTO') or 'https://via.placeholder.com/600x400?text=Photo' }}",
+    'ttd': "{{ doc_dict.get('TANDA_TANGAN') or 'https://via.placeholder.com/600x400?text=Signature' }}"
+  };
+
+  function switchDoc(type) {
+    document.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    viewer.src = docs[type];
+    zoom = 1; rotate = 0; updateViewer();
+  }
+
+  function adjustZoom(val) { zoom = Math.max(0.5, zoom + val); updateViewer(); }
+  function adjustRotate(val) { rotate += val; updateViewer(); }
+  function updateViewer() { viewer.style.transform = `scale(${zoom}) rotate(${rotate}deg)`; }
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) viewer.parentElement.requestFullscreen();
+    else document.exitFullscreen();
+  }
+
+  function toggleManualEdit() {
+    const inputs = document.querySelectorAll('.ocr-input');
+    const isReadOnly = inputs[0].hasAttribute('readonly');
+    const btn = document.getElementById('edit-toggle-btn');
+
+    if (isReadOnly) {
+      inputs.forEach(i => i.removeAttribute('readonly'));
+      btn.innerHTML = '<i class="material-icons-round">save</i> Save Changes';
+      btn.style.background = '#6e0b0b';
+      btn.style.color = '#white';
+    } else {
+      document.getElementById('form-action').value = 'update';
+      document.getElementById('ocr-update-form').submit();
+    }
+  }
+
+  function submitDecision(type) {
+    const actionMap = {
+      'APPROVE': "{{ url_for('onboarding.approve_registration', reg_id=reg.id) }}",
+      'REJECT': "{{ url_for('onboarding.reject_registration', reg_id=reg.id) }}"
+    };
+    
+    let reason = "";
+    if (type === 'REJECT') {
+      reason = prompt("Masukkan alasan penolakan:");
+      if (!reason) return;
+    } else {
+      if (!confirm("Apakah Anda yakin ingin menyetujui pendaftaran ini?")) return;
+    }
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = actionMap[type];
+    
+    if (reason) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'rejection_reason';
+      input.value = reason;
+      form.appendChild(input);
+    }
+    
+    document.body.appendChild(form);
+    form.submit();
+  }
+</script>
+{% endblock %}

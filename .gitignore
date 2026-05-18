@@ -1,0 +1,29 @@
+# Virtual environments
+venv/
+venv_old/
+env/
+.env
+ENV/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and Editor configs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# App Uploads/Temporary folders
+uploads/
+scratch/

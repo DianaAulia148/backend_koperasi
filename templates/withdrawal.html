@@ -1,0 +1,295 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'withdrawals' %}
+{% set page_title = 'Pengajuan Penarikan' %}
+
+{% block dashboard_content %}
+<div class="withdrawal-container">
+    <!-- A. Withdrawal Analytics Cards (RESTORED) -->
+    <div class="analytics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">pending_actions</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Pending Requests</div>
+            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.pending }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Review Required</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">check_circle</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Approved Today</div>
+            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.approved_today }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Ready to Transfer</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">task_alt</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Completed</div>
+            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.completed }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Processed</div>
+        </div>
+        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <i class="material-icons-round">cancel</i>
+            </div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Rejected</div>
+            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.rejected }}</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Issues Found</div>
+        </div>
+    </div>
+
+    <div class="main-withdrawal-layout" style="display: grid; grid-template-columns: 1fr 380px; gap: 30px;">
+        <!-- B. Withdrawal Request Table (STANDARD UPDATED) -->
+        <div class="request-list-panel">
+            <div class="ent-table-container" style="margin-top: 0;">
+                <div class="ent-table-header">
+                    <h4 style="margin: 0; font-size: 16px; font-weight: 800;">Withdrawal Request Queue</h4>
+                    <div class="ent-search-wrapper">
+                        <i class="material-icons-round ent-search-icon">search</i>
+                        <input type="text" id="withdrawal-search" class="ent-search-input" placeholder="Cari nama atau nomor anggota...">
+                    </div>
+                </div>
+                <div class="ent-table-wrapper">
+                    <table class="ent-table" id="withdrawal-table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th style="text-align: right;">Amount</th>
+                                <th style="text-align: center;">Request Date</th>
+                                <th style="text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in withdrawals %}
+                            <tr class="clickable-row" 
+                                onclick="showWithdrawalDetail('{{ req.id }}')" 
+                                style="cursor: pointer;"
+                                data-id="{{ req.id }}"
+                                data-name="{{ req.member.full_name }}"
+                                data-no="{{ req.member.member_no }}"
+                                data-amount="Rp {{ '{:,.0f}'.format(req.amount).replace(',', '.') }}"
+                                data-bank="{{ req.bank_name }}"
+                                data-acc="{{ req.account_number }}"
+                                data-holder="{{ req.account_holder }}"
+                                data-date="{{ req.request_date.strftime('%d %b %Y') }}"
+                                data-status="{{ req.approval_status }}"
+                                data-member-bank="{{ req.member.bank_name or '-' }}"
+                                data-member-acc="{{ req.member.bank_account_no or '-' }}"
+                                data-member-holder="{{ req.member.bank_account_name or '-' }}">
+                                <td>
+                                    <div style="display: flex; flex-direction: column;">
+                                        <strong style="color: #111;">{{ req.member.full_name }}</strong>
+                                        <span style="font-size: 11px; color: #8c8282; font-weight: 700;">{{ req.member.member_no }}</span>
+                                    </div>
+                                </td>
+                                <td class="amount">Rp {{ "{:,.0f}".format(req.amount).replace(',', '.') }}</td>
+                                <td style="text-align: center; color: #666; font-size: 12px; font-weight: 600;">{{ req.request_date.strftime('%d %b %Y') }}</td>
+                                <td style="text-align: center;">
+                                    {% if req.approval_status == 'APPROVED' %}
+                                    <span class="status-pill status-aktif" style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                    {% elif req.approval_status == 'REJECTED' %}
+                                    <span class="status-pill status-tidak-aktif" style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                    {% else %}
+                                    <span class="status-pill" style="background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                    {% endif %}
+                                        {{ req.approval_status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 30px; color: #a49191;">Tidak ada pengajuan penarikan baru.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="ent-pagination">
+                    <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
+                    <div id="withdrawal-pagination"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- C. Withdrawal Detail Card (RESTORED SIDEBAR) -->
+        <div class="detail-sidebar-panel">
+            <div class="detail-card glass" style="background: rgba(255,255,255,0.9); padding: 30px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06); border: 1px solid rgba(255,255,255,0.5); position: sticky; top: 20px;">
+                <div class="detail-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                    <h5 style="margin: 0; font-size: 15px; font-weight: 800; color: #6e0b0b;">Detail Pengajuan</h5>
+                    <span class="request-id" style="font-size: 11px; font-weight: 800; color: #8c8282; background: #f3efec; padding: 4px 10px; border-radius: 6px;">PILIH DATA</span>
+                </div>
+                
+                <div id="sidebar-empty-state" style="text-align: center; padding: 40px 0; color: #ccc;">
+                    <i class="material-icons-round" style="font-size: 48px;">touch_app</i>
+                    <p style="font-size: 13px; font-weight: 600; margin-top: 10px;">Pilih baris tabel untuk melihat detail</p>
+                </div>
+
+                <div id="sidebar-content" style="display: none;">
+                    <!-- Member Profile -->
+                    <div class="member-profile-mini" style="display: flex; gap: 15px; align-items: center; padding-bottom: 20px; border-bottom: 1px dashed #e1d5d5; margin-bottom: 20px;">
+                        <div class="mp-avatar" style="width: 50px; height: 50px; background: #6e0b0b; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; box-shadow: 0 4px 10px rgba(110, 11, 11, 0.2);">BS</div>
+                        <div class="mp-info">
+                            <h6 style="margin: 0; font-size: 16px; font-weight: 800; color: #111;" id="side-name">-</h6>
+                            <p style="margin: 3px 0 0; font-size: 12px; color: #8c8282; font-weight: 600;">Saldo Tersedia: <strong id="side-balance" style="color: #6e0b0b;">Rp 12.500.000</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="withdrawal-info-list" style="margin-bottom: 25px;">
+                        <!-- Amount -->
+                        <div class="wi-item" style="margin-bottom: 20px; padding-top: 5px;">
+                            <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px;">Nominal Penarikan</label>
+                            <div class="wi-value" style="font-size: 26px; font-weight: 900; color: #111; margin-top: 5px;" id="side-amount">Rp 0</div>
+                        </div>
+
+                        <!-- Bank Info -->
+                        <div class="wi-item" style="margin-bottom: 15px; padding: 15px; background: #fff8f8; border-radius: 16px; border: 1px solid #fce8e8;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label style="font-size: 10px; font-weight: 800; color: #6e0b0b; text-transform: uppercase; letter-spacing: 0.5px;">Rekening Tujuan (Request)</label>
+                                <span style="font-size: 9px; background: #6e0b0b; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 800;">INPUT MOBILE</span>
+                            </div>
+                            <div style="font-size: 14px; font-weight: 800; color: #111;" id="side-bank-info">-</div>
+                            <div style="font-size: 13px; color: #6e0b0b; font-weight: 700; margin-top: 2px;" id="side-acc-info">-</div>
+                        </div>
+
+                        <!-- Registered Bank Info (NEW) -->
+                        <div class="wi-item" style="margin-bottom: 25px; padding: 15px; background: #f0fdf4; border-radius: 16px; border: 1px solid #dcfce7;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label style="font-size: 10px; font-weight: 800; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Rekening Terdaftar (Verified)</label>
+                                <i class="material-icons-round" style="font-size: 14px; color: #166534;">verified</i>
+                            </div>
+                            <div style="font-size: 13px; font-weight: 800; color: #111;" id="member-bank-info">-</div>
+                            <div style="font-size: 12px; color: #166534; font-weight: 700; margin-top: 2px;" id="member-acc-info">-</div>
+                        </div>
+
+                        <!-- Status Timeline (REQ-228/229) -->
+                        <div class="withdrawal-timeline" style="margin-bottom: 30px;">
+                            <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
+                                <div class="step-dot active" style="width: 24px; height: 24px; border-radius: 50%; background: #22c55e; color: white; display: flex; align-items: center; justify-content: center; z-index: 2;"><i class="material-icons-round" style="font-size: 14px;">check</i></div>
+                                <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #6e0b0b;"></div>
+                                <div class="step-txt">
+                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Requested</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;" id="side-date-full">12 Mei 2026, 09:15</div>
+                                </div>
+                            </div>
+                            <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
+                                <div class="step-dot current" style="width: 24px; height: 24px; border-radius: 50%; background: #6e0b0b; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2; box-shadow: 0 0 0 4px rgba(110, 11, 11, 0.1);">2</div>
+                                <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #f3efec;"></div>
+                                <div class="step-txt">
+                                    <div style="font-size: 13px; font-weight: 800; color: #6e0b0b;">Approval Status</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;">Waiting for admin review</div>
+                                </div>
+                            </div>
+                            <div class="timeline-step" style="display: flex; gap: 15px;">
+                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;">3</div>
+                                <div class="step-txt">
+                                    <div style="font-size: 13px; font-weight: 800; color: #111; opacity: 0.5;">Transfer Process</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600; opacity: 0.5;">Pending</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Upload Proof Area (REQ-230/231) -->
+                        <div class="upload-proof-area" style="margin-bottom: 25px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px;">Upload Bukti Transfer (Opsional)</label>
+                                <span style="font-size: 9px; background: #f0f9ff; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: 800;">OCR READY</span>
+                            </div>
+                            <div style="border: 2px dashed #eee; border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#6e0b0b'; this.style.background='#fff8f8';" onmouseout="this.style.borderColor='#eee'; this.style.background='transparent';">
+                                <i class="material-icons-round" style="font-size: 28px; color: #6e0b0b;">file_upload</i>
+                                <div style="font-size: 11px; font-weight: 700; color: #444; margin-top: 5px;">Klik untuk upload struk / screenshot</div>
+                                <p style="font-size: 9px; color: #8c8282; margin: 5px 0 0;">Sistem akan memvalidasi nominal otomatis</p>
+                            </div>
+                        </div>
+
+                        <!-- Rejection Reason (REQ-232) -->
+                        <div id="rejection-reason-box" style="display: none; margin-bottom: 20px; animation: slideDown 0.3s ease-out;">
+                            <label style="font-size: 10px; font-weight: 800; color: #e11d48; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Catatan Penolakan (Wajib)</label>
+                            <textarea id="rejection-reason" placeholder="Berikan alasan penolakan untuk anggota..." style="width: 100%; height: 80px; padding: 12px; border: 2px solid #ffe4e6; border-radius: 12px; font-size: 12px; outline: none; transition: border-color 0.2s;"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="action-footer" style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+                        <button class="btn-reject" id="btn-reject-main" onclick="toggleRejectionReason()" style="padding: 14px; border-radius: 16px; border: 1px solid #e1d5d5; background: white; color: #ef4444; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#fff5f5';" onmouseout="this.style.background='white';">REJECT</button>
+                        <button class="btn-approve" style="padding: 14px; border-radius: 16px; border: none; background: #6e0b0b; color: white; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(110, 11, 11, 0.2);" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">APPROVE REQUEST</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Footer (REQ-235) -->
+            <div style="margin-top: 25px; text-align: center; opacity: 0.6;">
+                <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <i class="material-icons-round" style="font-size: 16px; color: #64748b;">verified_user</i>
+                    <span style="font-size: 10px; font-weight: 800; color: #475569; letter-spacing: 0.5px;">CO-OP VERIFIED &bull; 256-BIT ENCRYPTION</span>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        new SmartTable('withdrawal-table', {
+            searchId: 'withdrawal-search',
+            paginationId: 'withdrawal-pagination',
+            perPage: 10
+        });
+    });
+
+    function showWithdrawalDetail(id) {
+        const row = event.currentTarget;
+        document.getElementById('sidebar-empty-state').style.display = 'none';
+        document.getElementById('sidebar-content').style.display = 'block';
+        
+        // Populate Sidebar
+        document.querySelector('.request-id').innerText = '#' + id;
+        document.getElementById('side-name').innerText = row.dataset.name;
+        document.querySelector('.mp-avatar').innerText = row.dataset.name.substring(0, 2).toUpperCase();
+        document.getElementById('side-amount').innerText = row.dataset.amount;
+        document.getElementById('side-bank-info').innerText = row.dataset.bank + ' - ' + row.dataset.holder;
+        document.getElementById('side-acc-info').innerText = row.dataset.acc;
+        
+        // Member Registered Bank
+        document.getElementById('member-bank-info').innerText = row.dataset.memberBank + ' (' + row.dataset.memberHolder + ')';
+        document.getElementById('member-acc-info').innerText = row.dataset.memberAcc;
+
+        document.getElementById('side-date').innerText = row.dataset.date;
+        document.getElementById('side-date-full').innerText = row.dataset.date + ', 09:15';
+        
+        // Reset rejection box
+        document.getElementById('rejection-reason-box').style.display = 'none';
+        document.getElementById('btn-reject-main').innerText = 'REJECT';
+        
+        // Update Buttons Actions (Placeholder)
+        console.log("Withdrawal ID:", id, "Status:", row.dataset.status);
+    }
+
+    function toggleRejectionReason() {
+        const box = document.getElementById('rejection-reason-box');
+        const btn = document.getElementById('btn-reject-main');
+        if (box.style.display === 'none') {
+            box.style.display = 'block';
+            btn.innerText = 'CONFIRM REJECT';
+            btn.style.background = '#ef4444';
+            btn.style.color = 'white';
+        } else {
+            // Process rejection here
+            const reason = document.getElementById('rejection-reason').value;
+            if (!reason) {
+                alert("Harap isi alasan penolakan!");
+                return;
+            }
+            alert("Pengajuan ditolak dengan alasan: " + reason);
+        }
+    }
+</script>
+
+<style>
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}

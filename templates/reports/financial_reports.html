@@ -1,0 +1,175 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block dashboard_content %}
+<div class="report-header">
+  <h1>Data Laporan Keuangan</h1>
+</div>
+
+<div class="filter-panel">
+  <form class="filter-form" method="GET">
+    <div class="form-group">
+      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">MULAI TANGGAL</label>
+      <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+    </div>
+    <div class="form-group">
+      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">SAMPAI TANGGAL</label>
+      <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+    </div>
+    <div class="form-group">
+      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">KATEGORI</label>
+      <select name="category" class="form-control">
+        <option value="SEMUA" {% if category == 'SEMUA' or not category %}selected{% endif %}>- SEMUA SIMPANAN -</option>
+        {% for st in saving_types %}
+        <option value="{{ st.id }}" {% if category == st.id|string %}selected{% endif %}>{{ st.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-submit">TAMPILKAN DATA</button>
+  </form>
+</div>
+
+<div class="report-info">
+  <div>PERIODE: <b style="color:#333;">{{ start_date }} s/d {{ end_date }}</b></div>
+  <div>KATEGORI: <b style="color:#333;">
+    {% if category and category != 'SEMUA' %}
+      {% for st in saving_types %}{% if category == st.id|string %}{{ st.name }}{% endif %}{% endfor %}
+    {% else %}
+      SEMUA SIMPANAN
+    {% endif %}
+  </b></div>
+  <div style="margin-left: auto;">
+    <button onclick="window.print()" style="cursor:pointer; background:white; border:1px solid #ddd; padding:6px 15px; border-radius:8px; font-weight:700; color:#6e0b0b; display: flex; align-items:center; gap:8px;">
+      <i class="material-icons-round" style="font-size: 18px;">print</i> PRINT LAPORAN
+    </button>
+  </div>
+</div>
+
+<div class="ent-table-container">
+  <div class="ent-table-header">
+    <div style="font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Detail Transaksi Keuangan</div>
+    <div class="ent-search-wrapper">
+      <i class="material-icons-round ent-search-icon">search</i>
+      <input type="text" id="report-search" class="ent-search-input" placeholder="Cari nama atau keterangan...">
+    </div>
+  </div>
+
+  <div class="ent-table-wrapper">
+    <table class="ent-table" id="report-table">
+      <thead>
+        {% set visible_types = [] %}
+        {% if category and category != 'SEMUA' %}
+          {% for st in saving_types %}
+            {% if category == st.id|string %}{% set visible_types = visible_types + [st] %}{% endif %}
+          {% endfor %}
+        {% else %}
+          {% set visible_types = saving_types %}
+        {% endif %}
+        
+        {% set v_len = visible_types|length %}
+        {% if v_len == 0 %}{% set v_len = 1 %}{% endif %}
+
+        <tr>
+          <th rowspan="2" style="width: 60px; text-align: center;">NO</th>
+          <th rowspan="2" style="width: 120px; text-align: center;">TANGGAL</th>
+          <th rowspan="2" style="text-align: left;">NAMA ANGGOTA</th>
+          <th colspan="{{ v_len }}" style="text-align: center;">KATEGORI SIMPANAN</th>
+          <th colspan="2" style="text-align: center;">JENIS TRANSAKSI</th>
+        </tr>
+        <tr>
+          {% for st in visible_types %}
+          <th style="text-align: center;">{{ st.code }}</th>
+          {% endfor %}
+          <th style="width: 150px; text-align: center;">PEMASUKAN</th>
+          <th style="width: 150px; text-align: center;">PENGELUARAN</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set totals = namespace(pemasukan=0, pengeluaran=0) %}
+        {% set type_totals = {} %}
+        {% for st in saving_types %}
+          {% set _ = type_totals.update({st.id|string: 0}) %}
+        {% endfor %}
+
+        {% if recent_tx %}
+          {% for tx in recent_tx %}
+          <tr>
+            <td style="text-align: center;">{{ loop.index }}</td>
+            <td style="text-align: center; font-weight: 500;">{{ tx.transaction_date.strftime('%d/%m/%Y') }}</td>
+            <td style="font-weight: 700; color: #222;">{{ tx.member_name }}</td>
+            
+            {% for st in visible_types %}
+            <td class="amount">
+              {% if tx.saving_type_id == st.id %}
+                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
+                {% set current_v = type_totals[st.id|string] %}
+                {% set _ = type_totals.update({st.id|string: current_v + tx.amount}) %}
+              {% else %}
+                <span style="color: #ccc;">-</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+
+            <td class="amount" style="color: #2e7d32; background: rgba(46, 125, 50, 0.02);">
+              {% if tx.transaction_type == 'CREDIT' %}
+                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
+                {% set totals.pemasukan = totals.pemasukan + tx.amount %}
+              {% else %}-{% endif %}
+            </td>
+            <td class="amount" style="color: #c62828; background: rgba(198, 40, 40, 0.02);">
+              {% if tx.transaction_type == 'DEBIT' %}
+                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
+                {% set totals.pengeluaran = totals.pengeluaran + tx.amount %}
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+        <tr class="no-data-row" style="display: none;">
+          <td colspan="{{ 5 + v_len }}" style="text-align: center; padding: 100px; color: #999;">
+            <i class="material-icons-round" style="font-size: 56px; display: block; margin-bottom: 15px; opacity: 0.1;">folder_open</i>
+            <span style="font-size: 1.1rem; font-weight: 600;">Tidak ada data ditemukan</span>
+          </td>
+        </tr>
+      </tbody>
+      {% if recent_tx %}
+      <tfoot id="report-footer">
+        <tr style="background: #fdfdfd; font-weight: 800; border-top: 2px solid #6e0b0b;">
+          <td colspan="3" style="text-align: right; padding-right: 20px; font-size: 0.75rem; color: #888;">RINGKASAN TOTAL</td>
+          {% for st in visible_types %}
+          <td class="amount" style="color: #6e0b0b;">Rp {{ "{:,.0f}".format(type_totals[st.id|string]).replace(',', '.') }}</td>
+          {% endfor %}
+          <td class="amount" style="color: #2e7d32; font-size: 1rem;">Rp {{ "{:,.0f}".format(totals.pemasukan).replace(',', '.') }}</td>
+          <td class="amount" style="color: #c62828; font-size: 1rem;">Rp {{ "{:,.0f}".format(totals.pengeluaran).replace(',', '.') }}</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+
+  <div class="ent-pagination">
+    <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
+    <div id="report-pagination-container"></div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    new SmartTable('report-table', {
+        searchId: 'report-search',
+        paginationId: 'report-pagination-container',
+        perPage: 10
+    });
+  });
+</script>
+
+<style>
+  /* Layout tweaks for reports specifically */
+  .report-header { margin-bottom: 25px; }
+  .report-header h1 { font-size: 2rem; font-weight: 800; color: #6e0b0b; }
+  .filter-panel { background: #fff; border: 1px solid #ddd; border-radius: 15px; padding: 25px; margin-bottom: 25px; }
+  .filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: flex-end; }
+  .form-control { width: 100%; padding: 12px 16px; border: 1px solid #ccc; border-radius: 8px; }
+  .btn-submit { background: #6e0b0b; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; height: 46px; }
+  .report-info { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #eee; display: flex; gap: 30px; font-size: 0.85rem; font-weight: 600; color: #666; }
+</style>
+{% endblock %}

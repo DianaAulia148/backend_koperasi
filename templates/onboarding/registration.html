@@ -1,0 +1,261 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block dashboard_content %}
+<style>
+  .onboarding-header {
+    margin-bottom: 24px;
+  }
+  .onboarding-header h1 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+  }
+  .onboarding-header p {
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-size: 14px;
+  }
+  
+  /* Analytics Cards */
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .analytic-card {
+    border-radius: 16px; /* rounded-xl */
+    padding: 20px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05); /* soft shadow */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .analytic-card:hover {
+    transform: translateY(-4px); /* hover animation */
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  }
+  .analytic-card .bg-icon {
+    position: absolute;
+    right: -10px;
+    bottom: -10px;
+    font-size: 80px;
+    opacity: 0.15;
+  }
+  .analytic-card h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+  }
+  .analytic-card .value {
+    font-size: 32px;
+    font-weight: 800;
+    margin-top: 8px;
+  }
+  
+  .card-pending { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .card-ocr-low { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+  .card-duplicate { background: linear-gradient(135deg, #f97316, #c2410c); }
+  .card-approved { background: linear-gradient(135deg, #10b981, #059669); }
+
+  /* Filters */
+  .filter-section {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    border: 1px solid var(--border-color);
+  }
+  .filter-input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-size: 14px;
+    flex: 1;
+    min-width: 150px;
+  }
+  .filter-btn {
+    background: var(--primary-red);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .filter-btn:hover { background: var(--accent-red); }
+
+  /* Table */
+
+  /* Badges */
+  .status-badge {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-block;
+  }
+  .badge-pending { background: #fef3c7; color: #d97706; }
+  .badge-approved { background: #d1fae5; color: #059669; }
+  .badge-rejected { background: #fee2e2; color: #b91c1c; }
+  .badge-clean { background: #d1fae5; color: #059669; }
+  .badge-suspicious { background: #ffedd5; color: #c2410c; }
+  .badge-verified { background: #dbeafe; color: #1d4ed8; }
+
+  .action-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s;
+  }
+  .action-btn:hover {
+    background: var(--primary-red);
+    color: white;
+    border-color: var(--primary-red);
+  }
+</style>
+
+<div class="onboarding-header">
+  <h1>Antrean Pendaftaran Anggota</h1>
+  <p>Kelola onboarding anggota dan validasi dokumen OCR</p>
+</div>
+
+<!-- Analytics Cards -->
+<div class="analytics-grid">
+  <div class="analytic-card card-pending">
+    <i class="material-icons-round bg-icon">hourglass_empty</i>
+    <h3>Total Pending</h3>
+    <div class="value">{{ pending_count }}</div>
+  </div>
+  <div class="analytic-card card-ocr-low">
+    <i class="material-icons-round bg-icon">document_scanner</i>
+    <h3>OCR Conf < 75%</h3>
+    <div class="value">{{ low_confidence_count }}</div>
+  </div>
+  <div class="analytic-card card-duplicate">
+    <i class="material-icons-round bg-icon">warning</i>
+    <h3>Duplicate Detected</h3>
+    <div class="value">{{ duplicate_count }}</div>
+  </div>
+  <div class="analytic-card card-approved">
+    <i class="material-icons-round bg-icon">check_circle</i>
+    <h3>Approved Today</h3>
+    <div class="value">{{ approved_today_count }}</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form class="filter-section" method="GET" action="{{ url_for('onboarding.registration') }}">
+  <input type="text" name="search" class="filter-input" placeholder="Cari Nama / NIK / NIP..." value="{{ search_query }}">
+  <select name="status" class="filter-input">
+    <option value="">Semua Approval Status</option>
+    <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
+    <option value="APPROVED" {% if status_filter == 'APPROVED' %}selected{% endif %}>Approved</option>
+    <option value="REJECTED" {% if status_filter == 'REJECTED' %}selected{% endif %}>Rejected</option>
+  </select>
+  <select name="review_needed" class="filter-input">
+    <option value="0">Semua Data</option>
+    <option value="1" {% if request.args.get('review_needed') == '1' %}selected{% endif %}>Butuh Review Manual</option>
+  </select>
+  <button type="submit" class="filter-btn">
+    <i class="material-icons-round" style="font-size: 18px;">filter_list</i> Filter
+  </button>
+</form>
+
+<!-- Table -->
+<div class="ent-table-container">
+  <table class="ent-table">
+    <thead>
+      <tr>
+        <th>Kode Pendaftaran</th>
+        <th>Nama Anggota</th>
+        <th>Nomor HP</th>
+        <th>Tgl Daftar</th>
+        <th>OCR Conf.</th>
+        <th>Duplicate</th>
+        <th>Verification</th>
+        <th>Approval</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for reg in registrations %}
+      <tr ondblclick="window.location.href='{{ url_for('onboarding.registration_detail', reg_id=reg.id) }}'" style="cursor: pointer;">
+        <td><strong>{{ reg.registration_code or '-' }}</strong></td>
+        <td>{{ reg.ocr_name or '-' }} <br><small class="text-muted">{{ reg.ocr_nik or '-' }}</small></td>
+        <td>{{ reg.phone or '-' }}</td>
+        <td>{{ reg.created_at.strftime('%Y-%m-%d') if reg.created_at else '-' }}</td>
+        <td>
+          {% if reg.ocr_confidence %}
+            {% if reg.ocr_confidence >= 0.75 %}
+              <span class="status-badge badge-clean">{{ (reg.ocr_confidence * 100)|round(1) }}%</span>
+            {% elif reg.ocr_confidence >= 0.50 %}
+              <span class="status-badge badge-pending">{{ (reg.ocr_confidence * 100)|round(1) }}%</span>
+            {% else %}
+              <span class="status-badge badge-rejected">{{ (reg.ocr_confidence * 100)|round(1) }}%</span>
+            {% endif %}
+          {% else %}
+            -
+          {% endif %}
+        </td>
+        <td>
+          {% if reg.duplicate_check_status == 'CLEAN' %}
+            <span class="status-badge badge-clean">CLEAN</span>
+          {% elif reg.duplicate_check_status == 'SUSPICIOUS' %}
+            <span class="status-badge badge-suspicious">SUSPICIOUS</span>
+          {% elif reg.duplicate_check_status == 'DUPLICATED' %}
+            <span class="status-badge badge-rejected">DUPLICATED</span>
+          {% else %}
+            <span class="status-badge badge-pending">PENDING</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if reg.verification_status == 'VERIFIED' %}
+            <span class="status-badge badge-verified">VERIFIED</span>
+          {% else %}
+            <span class="status-badge badge-pending">{{ reg.verification_status }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if reg.approval_status == 'APPROVED' %}
+            <span class="status-badge badge-approved">APPROVED</span>
+          {% elif reg.approval_status == 'REJECTED' %}
+            <span class="status-badge badge-rejected">REJECTED</span>
+          {% else %}
+            <span class="status-badge badge-pending">PENDING</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('onboarding.registration_detail', reg_id=reg.id) }}" class="action-btn">Detail Review</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="9" style="text-align: center; padding: 40px; color: var(--text-muted);">
+          Belum ada antrean pendaftaran.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

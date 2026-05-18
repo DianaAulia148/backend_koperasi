@@ -1,0 +1,117 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block content %}
+<div class="p-6 animate-fade-in">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">OCR Validation Logs</h1>
+            <p class="text-gray-500 mt-1">Audit trail seluruh aktivitas pemrosesan AI Vision</p>
+        </div>
+        <button class="btn-secondary flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 9l-4 4m0 0l-4-4m4 4V3"></path></svg>
+            Export Logs (CSV/Excel)
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8 flex flex-wrap gap-4 items-end">
+        <div class="space-y-1">
+            <label class="text-xs font-bold text-gray-400 uppercase">Search Member</label>
+            <input type="text" placeholder="Nama / NIK..." class="w-full md:w-64 px-4 py-2 bg-gray-50 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20">
+        </div>
+        <div class="space-y-1">
+            <label class="text-xs font-bold text-gray-400 uppercase">Status</label>
+            <select class="w-full md:w-48 px-4 py-2 bg-gray-50 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20">
+                <option>Semua Status</option>
+                <option>Success</option>
+                <option>Low Confidence</option>
+                <option>Failed</option>
+            </select>
+        </div>
+        <div class="space-y-1">
+            <label class="text-xs font-bold text-gray-400 uppercase">Date Range</label>
+            <input type="date" class="w-full md:w-48 px-4 py-2 bg-gray-50 border-gray-200 rounded-xl text-sm">
+        </div>
+        <button class="bg-primary text-white h-[42px] px-6 rounded-xl font-bold hover:bg-primary-dark transition-colors">Apply Filters</button>
+    </div>
+
+    <!-- Table Section -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="ent-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Member / User</th>
+                        <th>Activity</th>
+                        <th>Confidence</th>
+                        <th>Reviewer</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="text-sm text-gray-500 font-mono">
+                                {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </td>
+                            <td class="text-sm font-bold text-gray-700">
+                                {{ log.user_id or 'System' }}
+                            </td>
+                            <td>
+                                <p class="text-sm text-gray-800 font-semibold">{{ log.activity }}</p>
+                                <p class="text-xs text-gray-400">Table: {{ log.table_name }} | ID: {{ log.reference_id }}</p>
+                            </td>
+                            <td>
+                                {% if 'Success' in log.activity %}
+                                <span class="text-green-600 font-bold text-sm">90% +</span>
+                                {% else %}
+                                <span class="text-gray-400 text-sm">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-sm text-gray-600 italic">
+                                AI Engine V2.4
+                            </td>
+                            <td>
+                                {% if 'Success' in log.activity %}
+                                <div class="flex items-center text-green-600 font-bold text-xs gap-1">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                    PROCESSED
+                                </div>
+                                {% else %}
+                                <div class="flex items-center text-red-600 font-bold text-xs gap-1">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>
+                                    LOGGED
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">
+                                Belum ada log aktivitas OCR ditemukan.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .btn-secondary {
+        @apply bg-white text-gray-700 border border-gray-200 px-6 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block content %}
+<div class="p-6 animate-fade-in">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800">Review Dokumen Pending</h1>
+        <p class="text-gray-500 mt-1">Verifikasi manual untuk dokumen dengan skor confidence rendah atau duplikat</p>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <p class="text-sm font-bold text-gray-400 uppercase">Total Pending</p>
+            <h2 class="text-3xl font-bold text-gray-800 mt-1">{{ reviews|length }}</h2>
+        </div>
+        <div class="bg-red-50 p-6 rounded-2xl border border-red-100">
+            <p class="text-sm font-bold text-red-400 uppercase">Failed Scan</p>
+            <h2 class="text-3xl font-bold text-red-700 mt-1">2</h2>
+        </div>
+        <div class="bg-yellow-50 p-6 rounded-2xl border border-yellow-100">
+            <p class="text-sm font-bold text-yellow-500 uppercase">Low Confidence</p>
+            <h2 class="text-3xl font-bold text-yellow-700 mt-1">3</h2>
+        </div>
+        <div class="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+            <p class="text-sm font-bold text-orange-500 uppercase">Duplicates</p>
+            <h2 class="text-3xl font-bold text-orange-700 mt-1">1</h2>
+        </div>
+    </div>
+
+    <!-- Table Section -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-6 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="relative w-full md:w-96">
+                <input type="text" placeholder="Cari nama atau NIK..." class="w-full pl-10 pr-4 py-2 bg-gray-50 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <div class="flex gap-2">
+                <select class="bg-gray-50 border-gray-200 rounded-xl text-sm px-4 py-2">
+                    <option>Semua Status</option>
+                    <option>REVIEW REQUIRED</option>
+                    <option>FAILED</option>
+                    <option>DUPLICATE</option>
+                </select>
+                <button class="p-2 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="ent-table">
+                <thead>
+                    <tr>
+                        <th>Nama / Member</th>
+                        <th>Jenis Dokumen</th>
+                        <th>OCR Status</th>
+                        <th>Confidence</th>
+                        <th>Upload Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    {% if reviews %}
+                        {% for reg in reviews %}
+                        <tr class="hover:bg-gray-50 transition-colors group">
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                        {{ reg.ocr_name[0] if reg.ocr_name else '?' }}
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-gray-800">{{ reg.ocr_name or 'N/A' }}</p>
+                                        <p class="text-xs text-gray-400">NIK: {{ reg.ocr_nik or 'N/A' }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold">KTP</span>
+                            </td>
+                            <td>
+                                {% if reg.status == 'pending' %}
+                                <span class="px-3 py-1 bg-yellow-50 text-yellow-600 rounded-lg text-xs font-bold">REVIEW REQUIRED</span>
+                                {% elif reg.status == 'failed' %}
+                                <span class="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold">FAILED</span>
+                                {% else %}
+                                <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg text-xs font-bold">DUPLICATE DETECTED</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-grow bg-gray-100 h-1.5 rounded-full overflow-hidden max-w-[100px]">
+                                        <div class="bg-yellow-500 h-full" style="width: 72%"></div>
+                                    </div>
+                                    <span class="text-sm font-bold text-gray-700">72%</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {{ reg.created_at.strftime('%d %b %Y, %H:%M') if reg.created_at else 'N/A' }}
+                            </td>
+                            <td>
+                                <button class="btn-review flex items-center gap-2 text-primary font-bold hover:underline">
+                                    Detail Review
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center opacity-40">
+                                    <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <p class="text-xl font-bold">Tidak ada dokumen pending</p>
+                                    <p>Semua dokumen telah diverifikasi oleh AI</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="p-6 bg-gray-50/50 border-t border-gray-50 flex justify-between items-center">
+            <p class="text-sm text-gray-500">Menampilkan 1-10 dari {{ reviews|length }} data</p>
+            <div class="flex gap-2">
+                <button class="p-2 bg-white border border-gray-200 rounded-lg text-gray-400 cursor-not-allowed"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"></path></svg></button>
+                <button class="p-2 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,329 @@
+{% extends "layouts/base.html" %}
+{% block content %}
+<div class="signup-page-wrapper">
+  <!-- Top Global Header -->
+  <header class="signup-header">
+    <div class="header-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" style="color: #7a0000;">
+        <path d="M3 21h18"></path>
+        <path d="M3 10h18"></path>
+        <path d="M5 6l7-3 7 3"></path>
+        <path d="M4 10v11"></path>
+        <path d="M20 10v11"></path>
+        <path d="M8 14v3"></path>
+        <path d="M12 14v3"></path>
+        <path d="M16 14v3"></path>
+      </svg>
+      <span>HARKAT KOPERASI ADMIN</span>
+    </div>
+    <div class="header-links">
+      <a href="#">Help & Support</a>
+    </div>
+  </header>
+
+  <!-- Main Card -->
+  <div class="signup-card-new">
+    <div class="signup-left">
+      <div class="tag-pill">INTERNAL PORTAL</div>
+      <h1>Securing the Future of Financial Cooperation</h1>
+      <p class="desc">Join the administrative board to manage member assets and uphold the standards of our global
+        financial cooperative.</p>
+
+      <div class="features-list">
+        <div class="feature-item">
+          <div class="f-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="none">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M9 12l2 2 4-4" stroke="#7a0000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                fill="none"></path>
+            </svg>
+          </div>
+          <div class="f-text">
+            <strong>Enterprise Security</strong>
+            <span>Multi-factor authentication and role-based access control enabled.</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="f-icon" style="background: transparent; color: white;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12h4l3-9 5 18 3-9h5"></path>
+            </svg>
+          </div>
+          <div class="f-text">
+            <strong>Regulatory Compliance</strong>
+            <span>System audited for international financial reporting standards.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="signup-right">
+      <div class="signup-form-container">
+        <h2>Create Admin Account</h2>
+        <p class="subtitle">Please provide your authorized employee credentials.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <style>
+          .flash-error {
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background-color: rgba(248, 215, 218, 0.1);
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
+          }
+
+          .flash-success {
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background-color: rgba(212, 237, 218, 0.1);
+            color: #51cf66;
+            border: 1px solid #51cf66;
+          }
+        </style>
+        <div class="flash-messages" style="margin-bottom: 20px;">
+          {% for category, message in messages %}
+          <div class="alert flash-{{ category }}">
+            {{ message }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+          <div class="input-row">
+            <div class="input-group">
+              <label>Full Name</label>
+              <div class="input-wrapper">
+                <input type="text" name="full_name" placeholder="Enter legal name" required>
+              </div>
+            </div>
+            <div class="input-group">
+              <label>Employee ID</label>
+              <div class="input-wrapper">
+                <input type="text" name="employee_id" placeholder="ADM-XXXX-2024" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Work Email Address</label>
+            <div class="input-wrapper">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+              </span>
+              <input type="email" name="email" placeholder="name@coop-financial.com" required>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Access Password</label>
+            <div class="input-wrapper">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <input type="password" id="password" name="password" placeholder="Min. 12 characters" required>
+              <span class="icon eye-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </span>
+            </div>
+            <div id="password-warning" style="display: none; background: rgba(255, 77, 77, 0.08); border-left: 3px solid #ff4d4d; padding: 10px; margin-top: 10px; border-radius: 4px;">
+              <p style="font-size: 11px; color: #ff4d4d; margin: 0; line-height: 1.4;">
+                <strong>Keamanan Kata Sandi:</strong><br>
+                Kata sandi harus minimal 12 karakter, mengandung huruf besar (A-Z), huruf kecil (a-z), dan angka (0-9).
+              </p>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Confirm Password</label>
+            <div class="input-wrapper">
+              <span class="icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <path d="M9 12l2 2 4-4"></path>
+                </svg>
+              </span>
+              <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter password" required>
+              <span class="icon eye-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </span>
+            </div>
+            <div id="match-text" style="font-size: 10px; margin-top: 5px;"></div>
+          </div>
+
+          <div class="checkbox-group signup-checkbox">
+            <label class="custom-checkbox align-start">
+              <input type="checkbox" name="agree" required>
+              <span class="check-text">
+                I understand that this is an administrative account with high-level access.<br>
+                I agree to the <a href="#">Security Protocol</a> and <a href="#">Privacy Standards</a>.
+              </span>
+            </label>
+          </div>
+
+          <button type="submit" class="submit-btn submit-signup">Daftar</button>
+        </form>
+
+        <div class="divider"
+          style="display: flex; align-items: center; text-align: center; margin: 20px 0; color: #666;">
+          <hr style="flex-grow: 1; border: none; border-top: 1px solid #ccc;">
+          <span style="padding: 0 10px; font-size: 0.9em; text-transform: uppercase;">atau daftar dengan</span>
+          <hr style="flex-grow: 1; border: none; border-top: 1px solid #ccc;">
+        </div>
+
+        <a href="{{ url_for('auth.login_google', mode='signup') }}" class="btn-google"
+          style="display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; border: 1px solid #ccc; padding: 12px; border-radius: 4px; text-decoration: none; color: #333; font-weight: bold; font-family: sans-serif; transition: background 0.2s;">
+          <svg width="20" height="20" viewBox="0 0 48 48" style="margin-right: 10px;">
+            <path fill="#EA4335"
+              d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <path fill="#4285F4"
+              d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <path fill="#FBBC05"
+              d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <path fill="#34A853"
+              d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          </svg>
+          Google
+        </a>
+
+        <div class="signup-bottom-text" style="margin-top: 20px;">
+          <span>Already have an account?</span>
+          <a href="{{ url_for('auth.login') }}" class="admin-login-link">Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Footer -->
+  <footer class="signup-footer">
+    <div class="footer-left">
+      <strong>HARKAT KOPERASI ADMIN PORTAL</strong><br>
+      <span>&copy; 2026 HARKAT KOPERASI. Authorized Personnel Only.</span>
+    </div>
+    <div class="footer-right">
+      <a href="#">Security Standards</a>
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+    </div>
+  </footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordInput = document.getElementById('password');
+    const confirmInput = document.getElementById('confirm_password');
+    const passwordWarning = document.getElementById('password-warning');
+    const matchText = document.getElementById('match-text');
+
+    function checkSequences(val) {
+        const sequences = [
+            'qwertyuiop', 'asdfghjkl', 'zxcvbnm',
+            '1234567890', '0987654321',
+            'abcdefghijklmnopqrstuvwxyz'
+        ];
+        val = val.toLowerCase();
+        for (let seq of sequences) {
+            for (let i = 0; i <= seq.length - 4; i++) {
+                let sub = seq.substring(i, i + 4);
+                if (val.includes(sub)) return true;
+            }
+        }
+        if (/(.)\1\1\1/.test(val)) return true;
+        return false;
+    }
+
+    function validatePassword() {
+        if (!passwordInput) return;
+        const val = passwordInput.value;
+        if (val === '') {
+            passwordWarning.style.display = 'none';
+            return;
+        }
+
+        const checks = {
+            length: val.length >= 12,
+            upper: /[A-Z]/.test(val),
+            lower: /[a-z]/.test(val),
+            number: /[0-9]/.test(val)
+        };
+
+        const allMet = Object.values(checks).every(v => v);
+        
+        if (allMet) {
+            passwordWarning.style.display = 'none';
+        } else {
+            passwordWarning.style.display = 'block';
+        }
+
+        validateMatch();
+    }
+
+    function validateMatch() {
+        if (!confirmInput || !matchText) return;
+        if (confirmInput.value === '') {
+            matchText.innerText = '';
+            return;
+        }
+
+        if (passwordInput.value === confirmInput.value) {
+            matchText.innerText = 'Password cocok';
+            matchText.style.color = '#27ae60';
+        } else {
+            matchText.innerText = 'Password tidak cocok';
+            matchText.style.color = '#ff4d4d';
+        }
+    }
+
+    if (passwordInput) passwordInput.addEventListener('input', validatePassword);
+    if (confirmInput) confirmInput.addEventListener('input', validateMatch);
+
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const val = passwordInput.value;
+            const checks = {
+                length: val.length >= 12,
+                upper: /[A-Z]/.test(val),
+                lower: /[a-z]/.test(val),
+                number: /[0-9]/.test(val)
+            };
+
+            let allMet = Object.values(checks).every(v => v);
+            let match = passwordInput.value === (confirmInput ? confirmInput.value : '');
+
+            if (!allMet) {
+                e.preventDefault();
+                passwordWarning.style.display = 'block';
+                alert('Kata sandi belum memenuhi kriteria keamanan.');
+            } else if (!match) {
+                e.preventDefault();
+                alert('Konfirmasi kata sandi tidak cocok.');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

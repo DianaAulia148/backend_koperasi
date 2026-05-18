@@ -1,0 +1,79 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="glass-card full-chart-container">
+        <div class="chart-header">
+            <h3>Korelasi: Inflasi vs Frekuensi Penarikan Anggota</h3>
+            <p class="text-muted">Menganalisis dampak kenaikan harga terhadap likuiditas simpanan.</p>
+        </div>
+        <div class="chart-body" style="height: 450px;">
+            <canvas id="correlationChart"></canvas>
+        </div>
+    </div>
+
+    <div class="glass-card insight-section">
+        <div class="insight-header" style="color: var(--primary-red);">
+            <i class="material-icons-round">query_stats</i>
+            <h3>Analisis Korelasi Otomatis</h3>
+        </div>
+        <div class="insight-list">
+            <div class="insight-item">
+                <div class="insight-text">Saat <strong>Inflasi</strong> meningkat di atas 4%, frekuensi <strong>Withdrawal</strong> anggota tercatat meningkat sebesar <strong>18%</strong>.</div>
+            </div>
+            <div class="insight-item">
+                <div class="insight-text">Kenaikan <strong>BI Rate</strong> cenderung menahan laju penarikan simpanan sukarela dalam 3 bulan terakhir.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('correlationChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
+                datasets: [
+                    {
+                        label: 'Inflasi (%)',
+                        data: [3.2, 3.5, 4.1, 4.8, 4.2, 3.8],
+                        borderColor: '#ef4444',
+                        yAxisID: 'y',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Withdrawal (Juta Rp)',
+                        data: [200, 220, 350, 580, 410, 300],
+                        borderColor: '#6e0b0b',
+                        yAxisID: 'y1',
+                        tension: 0.4,
+                        borderDash: [5, 5]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Inflasi (%)', color: '#ef4444' },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Withdrawal (Juta Rp)', color: '#6e0b0b' },
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

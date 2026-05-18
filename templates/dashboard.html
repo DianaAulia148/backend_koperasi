@@ -1,0 +1,414 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'dashboard' %}
+
+{% block extra_css %}
+<style>
+  /* ENTERPRISE DASHBOARD STYLES */
+  .welcome-banner {
+    padding: 20px 0;
+    margin-bottom: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-main);
+  }
+  .welcome-text h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.025em;
+    background: linear-gradient(to right, var(--primary-red), var(--accent-red));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .welcome-text p {
+    font-size: 1rem;
+    color: var(--text-muted);
+    margin: 8px 0 0 0;
+    font-weight: 500;
+  }
+  
+  .mini-stat {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    padding: 10px 24px;
+    border-radius: 12px;
+    text-align: center;
+    backdrop-filter: blur(8px);
+  }
+  .mini-stat-val { display: block; font-size: 1.2rem; font-weight: 800; color: var(--success-green); }
+  .mini-stat-lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-top: 2px; }
+
+  /* METRICS GRID */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+    margin-bottom: 35px;
+  }
+  .metric-card {
+    background: var(--ent-primary);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 35px 25px;
+    border: 1px solid var(--ent-glass-border);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    color: white;
+  }
+  .metric-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(110, 11, 11, 0.2);
+  }
+  .metric-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+  }
+  .metric-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  .metric-value {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: white;
+    line-height: 1.2;
+  }
+
+  /* CHARTS & CARDS */
+  .dashboard-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border-radius: 24px;
+    padding: 30px;
+    border: 1px solid var(--border-color);
+  }
+  .card-header h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+  .card-header a { font-size: 0.85rem; font-weight: 600; color: var(--primary-red); text-decoration: none; }
+
+  .list-item {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .list-item:hover {
+    background: var(--hover-bg);
+    border-color: var(--border-color);
+    transform: scale(1.01);
+  }
+
+  .tx-status-success { color: var(--success-green) !important; font-weight: 700; }
+  .tx-status-danger { color: #ef4444 !important; font-weight: 700; }
+  
+  .tx-icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+  }
+  
+  .icon-box-setor { background: rgba(16, 185, 129, 0.1); color: var(--success-green); }
+  .icon-box-tarik { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+  .status-tag {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .status-tag.pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+
+  @media (max-width: 1024px) {
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 768px) {
+    .welcome-banner { flex-direction: column; align-items: flex-start; gap: 20px; }
+    .welcome-text h1 { font-size: 1.8rem; }
+    .metrics-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Member Growth Chart
+    const growthCanvas = document.getElementById('growthChart');
+    const growthCtx = growthCanvas.getContext('2d');
+    const growthLabels = JSON.parse(growthCanvas.getAttribute('data-labels'));
+    const growthData = JSON.parse(growthCanvas.getAttribute('data-values'));
+
+    new Chart(growthCtx, {
+      type: 'line',
+      data: {
+        labels: growthLabels,
+        datasets: [{
+          label: 'Total Anggota',
+          data: growthData,
+          borderColor: '#6e0b0b',
+          backgroundColor: 'rgba(110, 11, 11, 0.1)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 3,
+          pointBackgroundColor: '#6e0b0b',
+          pointBorderColor: '#fff',
+          pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { 
+            beginAtZero: true, 
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            ticks: { color: '#64748b' }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { color: '#64748b' }
+          }
+        }
+      }
+    });
+
+    // Transactions Chart
+    const txCanvas = document.getElementById('txChart');
+    const txCtx = txCanvas.getContext('2d');
+    const txLabels = JSON.parse(txCanvas.getAttribute('data-labels'));
+    const setorData = JSON.parse(txCanvas.getAttribute('data-setor'));
+    const tarikData = JSON.parse(txCanvas.getAttribute('data-tarik'));
+
+    new Chart(txCtx, {
+      type: 'bar',
+      data: {
+        labels: txLabels,
+        datasets: [
+          {
+            label: 'Setor',
+            data: setorData,
+            backgroundColor: '#6e0b0b',
+            borderRadius: 6
+          },
+          {
+            label: 'Tarik',
+            data: [150, 180, 200, 450, 250, 300], // Using some varied data for effect
+            backgroundColor: '#ef4444',
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#64748b', boxWidth: 12, font: { size: 10 } }
+          }
+        },
+        scales: {
+          y: { 
+            beginAtZero: true, 
+            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+            ticks: { color: '#64748b' }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { color: '#64748b' }
+          }
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}
+
+{% block dashboard_content %}
+    <section class="welcome-banner">
+      <div class="welcome-text">
+        <h1><span data-i18n="welcome_back">Selamat Datang</span>, {{ current_user.full_name if current_user else 'Admin' }}!</h1>
+        <p data-i18n="welcome_desc">Kelola ekosistem ekonomi koperasi Anda dengan kendali penuh.</p>
+      </div>
+      <div class="welcome-stats-mini">
+        <div class="mini-stat">
+          <span class="mini-stat-val">Online</span>
+          <span class="mini-stat-lbl" data-i18n="system_status">Sistem</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- METRICS GRID -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon" style="background: #fdf5f5; color: #6e0b0b;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
+        <div class="metric-label" data-i18n="total_members">Total Anggota</div>
+        <div class="metric-value">{{ "{:,}".format(total_members) if total_members else "0" }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><circle cx="12" cy="12" r="3"></circle></svg>
+        </div>
+        <div class="metric-label" data-i18n="total_savings">Total Simpanan</div>
+        <div class="metric-value">Rp {{ "{:,.0f}".format(total_simpanan) if total_simpanan else "0" }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+        </div>
+        <div class="metric-label" data-i18n="total_withdrawals">Total Penarikan</div>
+        <div class="metric-value">Rp {{ "{:,.0f}".format(total_penarikan) if total_penarikan else "0" }}</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+        </div>
+        <div class="metric-label" data-i18n="co_op_balance">Saldo Koperasi</div>
+        <div class="metric-value">Rp {{ "{:,.0f}".format(saldo_akhir) if saldo_akhir else "0" }}</div>
+      </div>
+    </section>
+    
+    <!-- CHARTS SECTION -->
+    <div class="charts-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 35px;">
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h3 data-i18n="member_growth">Pertumbuhan Anggota</h3>
+          <span style="font-size: 11px; color: #a49191;" data-i18n="last_6_months">6 Bulan Terakhir</span>
+        </div>
+        <div style="height: 300px; position: relative;">
+          <canvas id="growthChart" 
+            data-labels='{{ growth_labels | tojson | safe }}'
+            data-values='{{ growth_data | tojson | safe }}'></canvas>
+        </div>
+      </div>
+      
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h3 data-i18n="volume_tx">Volume Transaksi</h3>
+          <span style="font-size: 11px; color: #a49191;" data-i18n="deposit_withdraw">Setor vs Tarik</span>
+        </div>
+        <div style="height: 300px; position: relative;">
+          <canvas id="txChart"
+            data-labels='{{ tx_labels | tojson | safe }}'
+            data-setor='{{ setor_data | tojson | safe }}'
+            data-tarik='{{ tarik_data | tojson | safe }}'></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-content-main-grid" style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 30px;">
+      <!-- QUEUE -->
+      <div class="dashboard-card" style="padding: 0; overflow: hidden;">
+        <div class="card-header" style="padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3efec;">
+          <h3 data-i18n="verification_queue" style="margin: 0;">Antrean Verifikasi</h3>
+          <a href="/registration" data-i18n="view_all">Lihat Semua</a>
+        </div>
+        <div class="ent-table-wrapper" style="max-height: 400px;">
+          <table class="ent-table">
+            <thead>
+              <tr>
+                <th>Nama Anggota</th>
+                <th style="text-align: center;">Tanggal</th>
+                <th style="text-align: right;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if request_members %}
+                {% for m in request_members %}
+                <tr>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(110, 11, 11, 0.1); color: #6e0b0b; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">
+                        {{ m.full_name[0] | upper if m.full_name else '?' }}
+                      </div>
+                      <span style="font-weight: 700; color: #111;">{{ m.full_name }}</span>
+                    </div>
+                  </td>
+                  <td style="text-align: center; font-size: 11px; color: #888;">{{ m.date_joined.strftime('%d %b %Y') if m.date_joined else '-' }}</td>
+                  <td style="text-align: right;"><span class="status-pill status-tidak-aktif" style="background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7;">{{ m.status }}</span></td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="3" style="text-align: center; padding: 50px; color: #a49191;">Belum ada antrean baru.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- RECENT TX -->
+      <div class="dashboard-card" style="padding: 0; overflow: hidden;">
+        <div class="card-header" style="padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3efec;">
+          <h3 data-i18n="recent_tx" style="margin: 0;">Transaksi Terakhir</h3>
+          <a href="/transactions" data-i18n="history">Riwayat</a>
+        </div>
+        <div class="ent-table-wrapper" style="max-height: 400px;">
+          <table class="ent-table">
+            <thead>
+              <tr>
+                <th>Anggota</th>
+                <th style="text-align: right;">Nominal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if recent_tx %}
+                {% for tx in recent_tx %}
+                <tr>
+                  <td>
+                    <div style="display: flex; flex-direction: column;">
+                      <span style="font-weight: 700; color: #111;">{{ tx.name }}</span>
+                      <span style="font-size: 10px; color: #888;">{{ tx.tx_type }}</span>
+                    </div>
+                  </td>
+                  <td style="text-align: right;">
+                    <span style="font-weight: 800; color: {{ '#22c55e' if tx.tx_type == 'SETOR' else '#ef4444' }};">
+                      {{ '+' if tx.tx_type == 'SETOR' else '-' }}Rp {{ "{:,.0f}".format(tx.amount) }}
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="2" style="text-align: center; padding: 50px; color: #a49191;">Tidak ada transaksi hari ini.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="analysis-header-grid">
+        <!-- Health Score Card -->
+        <div class="glass-card health-score-card">
+            <div class="score-circle">
+                <svg viewBox="0 0 36 36" class="circular-chart blue">
+                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path class="circle" stroke-dasharray="{{ health_score }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <text x="18" y="20.35" class="percentage">{{ health_score }}</text>
+                </svg>
+            </div>
+            <div class="score-info">
+                <span class="score-label">Financial Health Score</span>
+                <h3 class="score-status">{{ health_status }}</h3>
+                <p class="score-desc">Berdasarkan stabilitas simpanan dan risiko penarikan anggota.</p>
+            </div>
+        </div>
+
+        <!-- Radar Analysis -->
+        <div class="glass-card radar-chart-container">
+            <h3>Kondisi Ekonomi Anggota</h3>
+            <div class="chart-body">
+                <canvas id="economicRadarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Chart -->
+    <div class="glass-card full-chart-container">
+        <div class="chart-header">
+            <h3>Payroll vs Withdrawal (Monthly Trend)</h3>
+            <span class="text-muted" style="font-size: 0.85rem;">Memantau likuiditas koperasi terhadap gaji anggota</span>
+        </div>
+        <div class="chart-body">
+            <canvas id="payrollVsWithdrawalChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="glass-card recommendation-card">
+        <div class="rec-header">
+            <i class="material-icons-round" style="color: var(--primary-red);">security</i>
+            <h3>Mitigasi Risiko & Rekomendasi</h3>
+        </div>
+        <div class="rec-grid">
+            <div class="rec-item">
+                <span class="rec-tag warning">Waspada</span>
+                <p>Withdrawal meningkat 20% saat inflasi naik bulan lalu. Perlu pengawasan likuiditas ketat.</p>
+            </div>
+            <div class="rec-item">
+                <span class="rec-tag success">Optimal</span>
+                <p>Konsistensi payroll stabil membantu pertumbuhan saldo rata-rata anggota sebesar 5%.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .analysis-header-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 25px;
+    }
+
+    .health-score-card {
+        padding: 30px;
+        display: flex;
+        align-items: center;
+        gap: 30px;
+    }
+
+    .score-circle { width: 140px; }
+
+    .circular-chart {
+        display: block;
+        margin: 10px auto;
+        max-width: 100%;
+        max-height: 250px;
+    }
+
+    .circle-bg { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 2.8; }
+    .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; stroke: var(--primary-red); }
+    
+    @keyframes progress { 0% { stroke-dasharray: 0 100; } }
+
+    .percentage { fill: #fff; font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; }
+
+    .score-info .score-label { color: var(--text-muted); font-size: 0.9rem; }
+    .score-info .score-status { font-size: 1.5rem; margin: 5px 0; color: var(--success-green); }
+    .score-info .score-desc { color: var(--text-muted); font-size: 0.85rem; line-height: 1.4; }
+
+    .radar-chart-container { padding: 25px; }
+    .radar-chart-container h3 { font-size: 1.1rem; margin-bottom: 20px; text-align: center; }
+    .radar-chart-container .chart-body { height: 250px; }
+
+    .full-chart-container { padding: 30px; }
+    .full-chart-container .chart-body { height: 400px; }
+
+    .recommendation-card { padding: 25px; }
+    .rec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .rec-item { padding: 20px; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border-left: 4px solid var(--primary-red); }
+    .rec-tag { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; margin-bottom: 10px; }
+    .rec-tag.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning-orange); }
+    .rec-tag.success { background: rgba(16, 185, 129, 0.1); color: var(--success-green); }
+
+    @media (max-width: 992px) {
+        .analysis-header-grid { grid-template-columns: 1fr; }
+        .rec-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Radar Chart
+        const radarCtx = document.getElementById('economicRadarChart').getContext('2d');
+        new Chart(radarCtx, {
+            type: 'radar',
+            data: {
+                labels: {{ radar_labels | tojson }},
+                datasets: [{
+                    label: 'Score Ekonomi',
+                    data: {{ radar_values | tojson }},
+                    backgroundColor: 'rgba(110, 11, 11, 0.2)',
+                    borderColor: '#6e0b0b',
+                    pointBackgroundColor: '#6e0b0b',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(0, 0, 0, 0.05)' },
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        pointLabels: { color: '#94a3b8', font: { size: 10 } },
+                        ticks: { display: false },
+                        suggestedMin: 0,
+                        suggestedMax: 100
+                    }
+                }
+            }
+        });
+
+        // Payroll vs Withdrawal Chart
+        const barCtx = document.getElementById('payrollVsWithdrawalChart').getContext('2d');
+        new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
+                datasets: [
+                    {
+                        label: 'Payroll (Gaji)',
+                        data: [800, 850, 820, 900, 950, 1000],
+                        backgroundColor: '#6e0b0b',
+                        borderRadius: 5
+                    },
+                    {
+                        label: 'Withdrawal (Tarik Tunai)',
+                        data: [150, 180, 200, 450, 250, 300],
+                        backgroundColor: '#ef4444',
+                        borderRadius: 5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#94a3b8' }
+                    }
+                },
+                scales: {
+                    y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

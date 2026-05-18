@@ -1,0 +1,16 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% set active_menu = 'transactions' %}
+{% set page_title = 'Transactions' %}
+{% block dashboard_content %}
+<div class="glass-card" style="padding: 80px 40px; text-align: center; max-width: 600px; margin: 40px auto; border: 1px solid var(--border-color);">
+  <div style="width: 80px; height: 80px; background: rgba(110, 11, 11, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+    <i class="material-icons-round" style="font-size: 40px; color: var(--primary-red);">construction</i>
+  </div>
+  <h2 style="color: var(--text-main); font-weight: 800; margin-bottom: 12px;" data-i18n="module_under_dev">Modul Dalam Pengembangan</h2>
+  <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.6;">
+    <span data-i18n="features_coming_soon">Fitur spesifik untuk manajemen</span> 
+    <strong style="color: var(--ent-accent);">Transactions</strong> 
+    <span data-i18n="will_be_enabled_soon">akan segera diaktifkan untuk mendukung analisis finansial yang lebih mendalam.</span>
+  </p>
+</div>
+{% endblock %}

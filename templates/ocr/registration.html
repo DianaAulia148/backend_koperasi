@@ -1,0 +1,269 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block content %}
+<div class="ocr-container p-6 animate-fade-in">
+    <!-- Header Section -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">OCR Registrasi Anggota</h1>
+            <p class="text-gray-500 mt-1">Otomatisasi onboarding member menggunakan AI Vision</p>
+        </div>
+        <div class="flex gap-3">
+            <button class="btn-secondary flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Reset Form
+            </button>
+            <button class="btn-primary flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                Approve OCR
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- LEFT COLUMN: Document Preview & Upload -->
+        <div class="space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                    <span class="font-semibold text-gray-700">Document Preview</span>
+                    <div class="flex gap-2">
+                        <button class="p-2 hover:bg-white rounded-lg transition-colors" title="Zoom In"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg></button>
+                        <button class="p-2 hover:bg-white rounded-lg transition-colors" title="Rotate"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+                    </div>
+                </div>
+                
+                <div class="relative min-h-[500px] flex items-center justify-center bg-gray-100 p-8">
+                    <!-- Placeholder/Upload Area -->
+                    <div id="dropzone" class="w-full h-full border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-center p-12 transition-all hover:border-primary hover:bg-primary/5 group cursor-pointer">
+                        <div class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                            <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800">Drag & Drop Dokumen</h3>
+                        <p class="text-gray-500 mt-2 max-w-xs">Mendukung KTP, KK, Kartu Karyawan, Pas Foto, atau Tanda Tangan (JPG, PNG, PDF)</p>
+                        <input type="file" id="fileInput" class="hidden">
+                        <button class="mt-6 px-6 py-2 bg-primary text-white rounded-xl font-semibold shadow-lg shadow-primary/20 hover:translate-y-[-2px] transition-all">Pilih File</button>
+                    </div>
+
+                    <!-- OCR Processing Animation (Hidden by default) -->
+                    <div id="processing" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                        <div class="ai-scan-anim mb-6"></div>
+                        <h3 class="text-2xl font-bold text-primary animate-pulse">AI is Scanning...</h3>
+                        <p class="text-gray-600 mt-2">Mengekstrak data dari dokumen Anda</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verification Status Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 class="font-bold text-gray-800 mb-4">Verification Check</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600">Duplicate NIK Check</span>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-lg font-bold">CLEAR</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600">Employee ID Validation</span>
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-lg font-bold">VALID</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600">Face Match (KTP vs Photo)</span>
+                        <span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg font-bold">98% MATCH</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: OCR Extraction Results -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div class="p-6 border-b border-gray-50">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">OCR Extraction Results</h2>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-500">Overall Confidence:</span>
+                        <span class="text-lg font-bold text-green-600">94.5%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 flex-grow overflow-y-auto space-y-6">
+                <!-- Group: Personal Info -->
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">NIK (Nomor Induk Kependudukan)</label>
+                            <div class="relative group">
+                                <input type="text" value="3275012304920005" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 transition-all font-mono text-gray-700">
+                                <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-green-500 bg-green-50 px-1.5 py-0.5 rounded">99%</span>
+                                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Nomor KK</label>
+                            <div class="relative">
+                                <input type="text" value="3275000000000000" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 transition-all font-mono text-gray-700">
+                                <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded">82%</span>
+                                    <div class="w-2 h-2 rounded-full bg-yellow-500"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Nama Lengkap</label>
+                        <div class="relative">
+                            <input type="text" value="ANANDA MAULANA" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 transition-all font-bold text-gray-800">
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                <span class="text-[10px] font-bold text-green-500 bg-green-50 px-1.5 py-0.5 rounded">96%</span>
+                                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tempat Lahir</label>
+                            <input type="text" value="BEKASI" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Tanggal Lahir</label>
+                            <input type="text" value="1992-04-23" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Alamat</label>
+                        <textarea rows="3" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3">JL. RAYA BEKASI KM 12 NO 45 RT 001 RW 002 KECAMATAN MEDAN SATRIA</textarea>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Jenis Kelamin</label>
+                            <select class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3">
+                                <option selected>LAKI-LAKI</option>
+                                <option>PEREMPUAN</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Unit Kerja</label>
+                            <input type="text" value="PRODUCTION LINE 4" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group: Work Info -->
+                <div class="pt-6 border-t border-gray-50 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Employee ID</label>
+                            <input type="text" value="EMP-2024-001" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 font-mono">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Validation</label>
+                            <div class="h-[46px] flex items-center px-4 bg-green-50 text-green-700 rounded-xl font-bold border border-green-100">
+                                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                Verified Match
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="p-6 bg-gray-50/50 border-t border-gray-50 grid grid-cols-2 gap-4">
+                <button class="btn-danger-outline py-3 flex justify-center items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+                    Reject Document
+                </button>
+                <button class="btn-secondary py-3 flex justify-center items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    Edit Manual
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .ocr-container {
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    /* AI Scan Animation */
+    .ai-scan-anim {
+        width: 120px;
+        height: 120px;
+        border: 4px solid #3b82f6;
+        border-radius: 50%;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ai-scan-anim::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 10px;
+        background: linear-gradient(to bottom, rgba(59, 130, 246, 0.5), transparent);
+        animation: scan 2s infinite linear;
+    }
+
+    @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+    }
+
+    /* Transition */
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Button Styles (Ensure these exist in your global CSS) */
+    .btn-primary {
+        @apply bg-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all active:scale-[0.98];
+    }
+    .btn-secondary {
+        @apply bg-white text-gray-700 border border-gray-200 px-6 py-2 rounded-xl font-bold hover:bg-gray-50 transition-all;
+    }
+    .btn-danger-outline {
+        @apply bg-white text-red-500 border border-red-200 rounded-xl font-bold hover:bg-red-50 transition-all;
+    }
+</style>
+
+<script>
+    // Simple interaction logic
+    document.getElementById('dropzone').addEventListener('click', function() {
+        document.getElementById('fileInput').click();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            // Show processing
+            document.getElementById('dropzone').classList.add('hidden');
+            document.getElementById('processing').classList.remove('hidden');
+            
+            // Simulate processing
+            setTimeout(() => {
+                document.getElementById('processing').innerHTML = `
+                    <div class="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-green-600">Scan Complete!</h3>
+                    <p class="text-gray-500 mt-2">Data extracted successfully</p>
+                    <button onclick="location.reload()" class="mt-4 text-primary font-bold">Upload Another</button>
+                `;
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}
