@@ -201,32 +201,71 @@
   .btn-ent-reject { background: #6e0b0b; color: white; }
 
   /* TIMELINE */
-  .ent-timeline { position: relative; padding-left: 35px; margin-top: 10px; }
+  .ent-timeline {
+    position: relative;
+    padding-left: 40px;
+    margin-top: 20px;
+  }
   .ent-timeline::before {
     content: '';
     position: absolute;
-    left: 14px;
-    top: 5px;
-    bottom: 5px;
-    width: 2px;
-    background: #eee;
+    left: 15px;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    background: #e0e0e0;
+    border-radius: 2px;
   }
-  .t-item { position: relative; margin-bottom: 25px; }
-  .t-dot {
+  .t-item {
+    position: relative;
+    margin-bottom: 30px;
+  }
+  .t-item:last-child {
+    margin-bottom: 0;
+  }
+  .t-icon-wrap {
     position: absolute;
-    left: -28px;
-    top: 0;
-    width: 16px;
-    height: 16px;
+    left: -38px;
+    top: -2px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: #fff;
-    border: 3px solid #6e0b0b;
-    z-index: 1;
+    border: 3px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    transition: all 0.3s ease;
   }
-  .t-item.done .t-dot { background: #27ae60; border-color: #27ae60; }
-  .t-content { font-size: 0.85rem; font-weight: 700; color: #111; }
-  .t-desc { font-size: 0.75rem; color: #888; margin-top: 4px; }
-  .t-time { font-size: 10px; color: #bbb; margin-top: 2px; }
+  .t-icon-wrap i {
+    font-size: 14px;
+    color: #888;
+  }
+  .t-item.active .t-icon-wrap {
+    border-color: #6e0b0b;
+    box-shadow: 0 0 0 4px rgba(110, 11, 11, 0.2);
+    animation: pulse-ring 1.5s infinite;
+  }
+  .t-item.active .t-icon-wrap i {
+    color: #6e0b0b;
+    font-weight: 800;
+  }
+  .t-item.done .t-icon-wrap {
+    background: #27ae60;
+    border-color: #27ae60;
+  }
+  .t-item.done .t-icon-wrap i {
+    color: white;
+  }
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(110, 11, 11, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(110, 11, 11, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(110, 11, 11, 0); }
+  }
+  .t-content { font-size: 0.85rem; font-weight: 800; color: #111; }
+  .t-desc { font-size: 0.75rem; color: #666; margin-top: 4px; line-height: 1.4; }
+  .t-time { font-size: 10px; color: #999; margin-top: 2px; font-weight: 600; display: block; }
 
   .audit-summary {
     background: #fafafa;
@@ -322,29 +361,46 @@
       <div class="panel-body">
         
         <!-- FRAUD / DUPLICATE ALERT -->
-        {% if reg.duplicate_check_status != 'CLEAN' %}
-        <div class="fraud-alert">
-          <div style="background: #6e0b0b; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            <i class="material-icons-round" style="color: white;">warning</i>
+        {% if reg.duplicate_check_status in ['DUPLICATED', 'SUSPICIOUS'] %}
+        <div class="fraud-alert" style="background: #fff5f5; border: 2px solid #eb5757; padding: 18px; border-radius: 14px; margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-start;">
+          <div style="background: #eb5757; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i class="material-icons-round" style="color: white; font-size: 20px;">warning</i>
           </div>
-          <div>
-            <div style="font-weight: 800; color: #6e0b0b; font-size: 0.9rem;">
-              {{ 'DUPLICATE NIK DETECTED' if reg.duplicate_check_status == 'DUPLICATED' else 'SUSPICIOUS DATA MATCH' }}
+          <div style="flex: 1;">
+            <div style="font-weight: 800; color: #6e0b0b; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">
+              {{ 'Duplicate NIK Terdeteksi' if reg.duplicate_check_status == 'DUPLICATED' else 'Kemiripan Data Terdeteksi' }}
             </div>
-            <div style="font-size: 0.75rem; color: #8c8282; margin-top: 2px;">
-              {{ 'NIK KTP ini terdeteksi sudah terdaftar pada anggota lain di sistem.' if reg.duplicate_check_status == 'DUPLICATED' else 'Data memiliki kemiripan tinggi dengan member existing.' }}
-              {% if duplicates %} <br><strong>Ref:</strong> {{ duplicates[0].full_name }} ({{ duplicates[0].member_no }}) {% endif %}
+            <div style="font-size: 0.8rem; color: #444; margin-top: 4px; line-height: 1.4; font-weight: 600;">
+              {% if reg.duplicate_check_status == 'DUPLICATED' %}
+                “Duplicate NIK terdeteksi pada anggota lain.”
+              {% else %}
+                “Data OCR memiliki kemiripan tinggi dengan member existing.”
+              {% endif %}
             </div>
+            {% if duplicates %}
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(110, 11, 11, 0.15); font-size: 11px; color: #666;">
+              <strong>Data Pembanding (Existing Member):</strong><br>
+              Nama: <span style="font-weight: 700; color: #111;">{{ duplicates[0].full_name }}</span> | No. Anggota: <span style="font-weight: 700; color: #111;">{{ duplicates[0].member_no }}</span> | NIK: <span style="font-weight: 700; color: #111;">{{ duplicates[0].nik or '-' }}</span>
+            </div>
+            {% endif %}
           </div>
         </div>
         {% endif %}
+
+        <!-- ACCURACY INDICATOR -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #fafafa; padding: 12px 16px; border-radius: 12px; border: 1px solid #eee;">
+          <span style="font-size: 13px; font-weight: 700; color: #555;">Tingkat Akurasi AI (Confidence):</span>
+          <span class="conf-badge-pill {% if (reg.ocr_confidence or 0) >= 0.75 %}conf-high{% elif (reg.ocr_confidence or 0) >= 0.50 %}conf-med{% else %}conf-low{% endif %}" style="position: static; transform: none; font-size: 11px; padding: 4px 10px; border-radius: 8px; font-weight: 700;">
+            {% if (reg.ocr_confidence or 0) >= 0.75 %}🟢 Tinggi{% elif (reg.ocr_confidence or 0) >= 0.50 %}🟡 Sedang{% else %}🔴 Rendah{% endif %} ({{ ((reg.ocr_confidence or 0) * 100)|round(1) }}%)
+          </span>
+        </div>
 
         <form id="ocr-update-form" action="{{ url_for('onboarding.registration_detail', reg_id=reg.id) }}" method="POST">
           <div class="ocr-field-group">
              <label class="ocr-label">Nomor Induk Kependudukan (NIK)</label>
              <div class="ocr-input-wrap">
                <input type="text" name="ocr_nik" class="ocr-input" value="{{ reg.ocr_nik or '' }}" readonly>
-               <span class="conf-badge-pill {% if (reg.ocr_confidence or 0) >= 0.8 %}conf-high{% elif (reg.ocr_confidence or 0) >= 0.6 %}conf-med{% else %}conf-low{% endif %}">
+               <span class="conf-badge-pill {% if (reg.ocr_confidence or 0) >= 0.75 %}conf-high{% elif (reg.ocr_confidence or 0) >= 0.50 %}conf-med{% else %}conf-low{% endif %}">
                  {{ ((reg.ocr_confidence or 0) * 100)|round(1) }}%
                </span>
              </div>
@@ -402,11 +458,12 @@
            <button class="btn-ent btn-ent-edit" id="edit-toggle-btn" onclick="toggleManualEdit()">
              <i class="material-icons-round">edit</i> Edit Manual Data
            </button>
-           <button class="btn-ent btn-ent-retry" onclick="alert('Retrying OCR Analysis...')">
+           <form id="retry-ocr-form" action="{{ url_for('onboarding.retry_ocr', reg_id=reg.id) }}" method="POST" style="display: none;"></form>
+           <button class="btn-ent btn-ent-retry" onclick="if(confirm('Apakah Anda yakin ingin mengulang scan OCR?')) document.getElementById('retry-ocr-form').submit();">
              <i class="material-icons-round">autorenew</i> Retry OCR Scan
            </button>
            <button class="btn-ent btn-ent-reject" onclick="submitDecision('REJECT')">
-             <i class="material-icons-round">block</i> Reject Pendaftaran
+             <i class="material-icons-round">block</i> Reject Registrasi
            </button>
         </div>
         {% else %}
@@ -423,30 +480,94 @@
 
         <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin-bottom: 15px; text-transform: uppercase;">Timeline Onboarding</div>
         <div class="ent-timeline">
+           <!-- Step 1: Upload Dokumen -->
            <div class="t-item done">
-             <div class="t-dot"></div>
-             <div class="t-content">Dokumen Diunggah</div>
-             <div class="t-desc">Semua dokumen fisik diterima di sistem.</div>
-             <div class="t-time">{{ reg.created_at.strftime('%H:%M, %d %b %Y') }}</div>
+             <div class="t-icon-wrap">
+               <i class="material-icons-round">cloud_done</i>
+             </div>
+             <div class="t-content">Upload Dokumen</div>
+             <div class="t-desc">Semua dokumen fisik berhasil diunggah.</div>
+             <span class="t-time">{{ reg.created_at.strftime('%H:%M, %d %b %Y') }}</span>
            </div>
-           <div class="t-item {{ 'done' if reg.ocr_confidence else '' }}">
-             <div class="t-dot"></div>
+
+           <!-- Step 2: OCR Processing -->
+           {% set ocr_done = (reg.ocr_confidence or 0) > 0 %}
+           <div class="t-item {% if ocr_done %}done{% else %}active{% endif %}">
+             <div class="t-icon-wrap">
+               <i class="material-icons-round">document_scanner</i>
+             </div>
              <div class="t-content">OCR Processing</div>
-             <div class="t-desc">AI mengekstraksi data dari KTP/ID. (Conf: {{ ((reg.ocr_confidence or 0)*100)|round(1) }}%)</div>
+             <div class="t-desc">
+               {% if ocr_done %}
+                 AI mengekstraksi data. Akurasi: {{ ((reg.ocr_confidence or 0)*100)|round(1) }}%
+                 {% if reg.ocr_retry_count and reg.ocr_retry_count > 0 %} (Scan #{{ reg.ocr_retry_count }}){% endif %}
+               {% else %}
+                 Menunggu proses ekstraksi data...
+               {% endif %}
+             </div>
+             {% if reg.ocr_processed_at %}
+             <span class="t-time">{{ reg.ocr_processed_at.strftime('%H:%M, %d %b %Y') }}</span>
+             {% endif %}
            </div>
-           <div class="t-item {{ 'done' if reg.duplicate_check_status != 'PENDING' else '' }}">
-             <div class="t-dot"></div>
+
+           <!-- Step 3: Duplicate Checking -->
+           {% set dup_done = reg.duplicate_check_status != 'PENDING' %}
+           <div class="t-item {% if dup_done %}done{% elif ocr_done %}active{% endif %}">
+             <div class="t-icon-wrap">
+               <i class="material-icons-round">supervised_user_circle</i>
+             </div>
              <div class="t-content">Duplicate Checking</div>
-             <div class="t-desc">Sistem memverifikasi keunikan NIK. (Status: {{ reg.duplicate_check_status }})</div>
+             <div class="t-desc">
+               Pengecekan NIK anggota ganda. Status: 
+               {% if reg.duplicate_check_status == 'CLEAN' %}
+                 <span style="color: #27ae60; font-weight: 700;">CLEAN</span>
+               {% elif reg.duplicate_check_status == 'SUSPICIOUS' %}
+                 <span style="color: #f08c00; font-weight: 700;">SUSPICIOUS</span>
+               {% elif reg.duplicate_check_status == 'DUPLICATED' %}
+                 <span style="color: #6e0b0b; font-weight: 700;">DUPLICATED</span>
+               {% else %}
+                 PENDING
+               {% endif %}
+             </div>
            </div>
-           {% for t in timeline %}
-           <div class="t-item done">
-             <div class="t-dot"></div>
-             <div class="t-content">{{ t.status }}</div>
-             <div class="t-desc">{{ t.notes }}</div>
-             <div class="t-time">{{ t.created_at.strftime('%H:%M, %d %b %Y') }}</div>
+
+           <!-- Step 4: Manual Review -->
+           {% set review_done = reg.verification_status == 'VERIFIED' or reg.approval_status != 'PENDING' %}
+           <div class="t-item {% if review_done %}done{% elif dup_done %}active{% endif %}">
+             <div class="t-icon-wrap">
+               <i class="material-icons-round">rate_review</i>
+             </div>
+             <div class="t-content">Manual Review</div>
+             <div class="t-desc">
+               {% if review_done %}
+                 Data terverifikasi oleh Pengurus.
+               {% else %}
+                 Menunggu review data oleh Pengurus...
+               {% endif %}
+             </div>
            </div>
-           {% endfor %}
+
+           <!-- Step 5: Approval/Rejection -->
+           {% set app_done = reg.approval_status != 'PENDING' %}
+           <div class="t-item {% if app_done %}done{% elif review_done %}active{% endif %}">
+             <div class="t-icon-wrap">
+               <i class="material-icons-round">verified</i>
+             </div>
+             <div class="t-content">Approval / Rejection</div>
+             <div class="t-desc">
+               Keputusan pendaftaran: 
+               {% if reg.approval_status == 'APPROVED' %}
+                 <span style="color: #27ae60; font-weight: 700;">APPROVED</span>
+               {% elif reg.approval_status == 'REJECTED' %}
+                 <span style="color: #6e0b0b; font-weight: 700;">REJECTED</span>
+               {% else %}
+                 PENDING
+               {% endif %}
+             </div>
+             {% if reg.approved_at %}
+             <span class="t-time">{{ reg.approved_at.strftime('%H:%M, %d %b %Y') }}</span>
+             {% endif %}
+           </div>
         </div>
 
         <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin: 25px 0 10px; text-transform: uppercase;">Activity Logs</div>
@@ -507,9 +628,13 @@
 
     if (isReadOnly) {
       inputs.forEach(i => i.removeAttribute('readonly'));
-      btn.innerHTML = '<i class="material-icons-round">save</i> Save Changes';
-      btn.style.background = '#6e0b0b';
-      btn.style.color = '#white';
+      btn.innerHTML = '<i class="material-icons-round">save</i> Simpan Perubahan';
+      btn.style.background = '#27ae60';
+      btn.style.color = 'white';
+      
+      // Auto focus on the first field (Name)
+      const nameInput = document.querySelector('input[name="ocr_name"]');
+      if (nameInput) nameInput.focus();
     } else {
       document.getElementById('form-action').value = 'update';
       document.getElementById('ocr-update-form').submit();

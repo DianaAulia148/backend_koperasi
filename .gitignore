@@ -27,3 +27,6 @@ Desktop.ini
 # App Uploads/Temporary folders
 uploads/
 scratch/
+gcp_key.json
+gcp_key.json.error
+gcp_key.json*

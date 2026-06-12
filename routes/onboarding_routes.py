@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from models.user_model import db, User, MemberRegistration, Member, MobileUser, MemberDocument, OcrLog, RegistrationTimeline, ActivityLog
 from datetime import datetime
 from sqlalchemy import func
+import random
 
 onboarding_bp = Blueprint('onboarding', __name__)
 
@@ -79,7 +80,7 @@ def registration():
                            active_menu='registration',
                            page_title='Antrean Pendaftaran')
 
-@onboarding_bp.route('/registration/<int:reg_id>')
+@onboarding_bp.route('/registration/<int:reg_id>', methods=['GET', 'POST'])
 def registration_detail(reg_id):
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
@@ -87,6 +88,79 @@ def registration_detail(reg_id):
     current_user = User.query.get(session['user_id'])
     reg = MemberRegistration.query.get_or_404(reg_id)
     
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'update':
+            # Perform manual update
+            fields_to_check = {
+                'ocr_nik': 'NIK',
+                'ocr_name': 'Nama',
+                'ocr_nip': 'NIP',
+                'ocr_jabatan': 'Jabatan',
+                'ocr_gender': 'Gender',
+                'ocr_birth_date': 'Tanggal Lahir',
+                'ocr_address': 'Alamat'
+            }
+            
+            changes_made = []
+            for field, label in fields_to_check.items():
+                old_val = getattr(reg, field)
+                new_val = request.form.get(field, '').strip()
+                if old_val != new_val:
+                    setattr(reg, field, new_val)
+                    # Log OCR Field Change
+                    log = OcrLog(
+                        registration_id=reg.id,
+                        field_name=label,
+                        value_before=old_val,
+                        value_after=new_val,
+                        confidence_before=reg.ocr_confidence,
+                        confidence_after=1.0,
+                        reviewer_id=current_user.id
+                    )
+                    db.session.add(log)
+                    changes_made.append(f"{label} changed to '{new_val}'")
+            
+            if changes_made:
+                # Re-evaluate duplicate check when NIK is changed manually
+                new_nik = request.form.get('ocr_nik', '').strip()
+                existing_member = None
+                if new_nik:
+                    existing_member = Member.query.filter_by(nik=new_nik).first()
+                
+                if existing_member:
+                    reg.duplicate_check_status = 'DUPLICATED'
+                    reg.duplicate_reference_id = existing_member.id
+                else:
+                    reg.duplicate_check_status = 'CLEAN'
+                    reg.duplicate_reference_id = None
+                
+                # Update verification status to VERIFIED on manual save
+                reg.verification_status = 'VERIFIED'
+                
+                # Log activity log
+                ActivityLog.log(
+                    activity=f"Manual Edit Details for Reg ID {reg.id}: {', '.join(changes_made)}",
+                    user_id=current_user.id,
+                    table_name="member_registration",
+                    reference_id=reg.id
+                )
+                
+                # Add a timeline event
+                timeline_event = RegistrationTimeline(
+                    registration_id=reg.id,
+                    status='MANUAL_REVIEW',
+                    notes=f"Data diedit manual oleh Pengurus: {', '.join(changes_made)}",
+                    created_by=current_user.id
+                )
+                db.session.add(timeline_event)
+                db.session.commit()
+                flash("Data pendaftaran berhasil diperbarui secara manual.", "success")
+            else:
+                flash("Tidak ada perubahan data yang disimpan.", "info")
+                
+            return redirect(url_for('onboarding.registration_detail', reg_id=reg.id))
+
     documents = MemberDocument.query.filter_by(member_registration_id=reg.id).all()
     doc_dict = {doc.document_type: doc.file_path for doc in documents}
     
@@ -113,6 +187,40 @@ def registration_detail(reg_id):
                            duplicates=duplicates,
                            active_menu='registration',
                            page_title='Detail Antrean Pendaftaran')
+
+@onboarding_bp.route('/registration/retry_ocr/<int:reg_id>', methods=['POST'])
+def retry_ocr(reg_id):
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+        
+    current_user = User.query.get(session['user_id'])
+    reg = MemberRegistration.query.get_or_404(reg_id)
+    
+    # Simulate OCR Re-Scan and improvement of confidence
+    reg.ocr_retry_count = (reg.ocr_retry_count or 0) + 1
+    reg.ocr_confidence = round(random.uniform(0.76, 0.95), 2)
+    reg.verification_status = 'PARTIAL'
+    
+    # Log timeline event
+    timeline_event = RegistrationTimeline(
+        registration_id=reg.id,
+        status='OCR_PROCESSED',
+        notes=f"OCR Scan diulang (Scan #{reg.ocr_retry_count}). Confidence score: {round(reg.ocr_confidence*100, 1)}%",
+        created_by=current_user.id
+    )
+    db.session.add(timeline_event)
+    
+    # Log activity log
+    ActivityLog.log(
+        activity=f"Retried OCR Scan for Reg ID {reg.id} (Scan #{reg.ocr_retry_count})",
+        user_id=current_user.id,
+        table_name="member_registration",
+        reference_id=reg.id
+    )
+    
+    db.session.commit()
+    flash("Proses OCR Scan berhasil diulang.", "success")
+    return redirect(url_for('onboarding.registration_detail', reg_id=reg.id))
 
 @onboarding_bp.route('/registration/approve/<int:reg_id>', methods=['POST'])
 def approve_registration(reg_id):

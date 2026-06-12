@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Mengizinkan OAuth HTTP untuk local development
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     BASE_API_URL = "http://192.168.56.196:5000"

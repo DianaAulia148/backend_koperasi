@@ -1,0 +1,118 @@
+{% extends 'layouts/dashboard_base.html' %}
+
+{% block dashboard_content %}
+<div class="analytics-container">
+    <div class="glass-card chart-container main-chart" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px;">
+        <div class="chart-header" style="margin-bottom: 25px;">
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #6e0b0b;">Harga Pangan Harian (Bank Indonesia)</h3>
+            {% if data %}
+            <span style="font-size: 0.85rem; color: #666; font-weight: 600;">Update Terakhir: {{ data[0].tanggal_str }}</span>
+            {% endif %}
+        </div>
+        <div class="chart-body" style="height: 400px; position: relative;">
+            <canvas id="foodBarChart"></canvas>
+        </div>
+    </div>
+
+    <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+        <div class="ent-table-header" style="padding:25px 30px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f3efec; flex-wrap:wrap; gap:15px;">
+            <div style="display:flex; align-items:center; gap:20px;">
+                <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b;">Data Harga Komoditas</h3>
+            </div>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <form method="GET" action="" style="display:flex; gap:10px; align-items:center; margin:0;">
+                    <input type="date" name="start_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ start_date or '' }}">
+                    <span style="color:#666; font-weight:bold;">-</span>
+                    <input type="date" name="end_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ end_date or '' }}">
+                    <button type="submit" class="ent-btn-page" style="background:#f3f3f3; color:#333; padding:8px 15px; border-radius:8px;">Filter</button>
+                    <a href="{{ url_for('economic.export_excel', indicator='food_prices', start_date=start_date, end_date=end_date) }}" class="ent-btn-page" style="background:#10b981; color:white; border-color:#10b981; padding:8px 15px; border-radius:8px; display:flex; align-items:center; gap:5px; text-decoration:none;">
+                        <i class="material-icons-round" style="font-size:16px;">download</i> Excel
+                    </a>
+                </form>
+                <div class="ent-search-wrapper" style="width:200px;">
+                    <i class="material-icons-round ent-search-icon">search</i>
+                    <input type="text" id="food-search" class="ent-search-input" placeholder="Cari komoditas...">
+                </div>
+            </div>
+        </div>
+        <div class="ent-table-wrapper">
+            <table class="ent-table" id="food-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px; text-align: center;">NO</th>
+                        <th>KOMODITAS</th>
+                        <th style="text-align: right;">HARGA (Rp)</th>
+                        <th style="text-align: center;">TANGGAL</th>
+                        <th style="text-align: center;">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in data %}
+                    <tr>
+                        <td style="text-align: center; font-weight: 800; color: #6e0b0b;">{{ loop.index }}</td>
+                        <td style="font-weight: 700;">{{ item.komoditas }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #10b981;">Rp {{ "{:,.0f}".format(item.harga_rp).replace(',', '.') }}</td>
+                        <td style="text-align: center; color: #666;">{{ item.tanggal_str }}</td>
+                        <td style="text-align: center;"><span class="status-pill status-aktif" style="font-size: 10px; background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 4px 8px; border-radius: 4px; font-weight: 700;">Real-Time</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="ent-pagination">
+            <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
+            <div id="food-pagination"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Init Table
+        new SmartTable('food-table', {
+            searchId: 'food-search',
+            paginationId: 'food-pagination',
+            perPage: 10
+        });
+
+        // Init Chart
+        // Process data for chart to show only one value per commodity (latest in the filtered set)
+        const rawData = [
+            {% for item in data %}
+                { komoditas: '{{ item.komoditas }}', harga: {{ item.harga_rp }} },
+            {% endfor %}
+        ];
+        
+        const latestPrices = {};
+        rawData.forEach(item => {
+            if (!latestPrices[item.komoditas]) {
+                latestPrices[item.komoditas] = item.harga;
+            }
+        });
+
+        const ctx = document.getElementById('foodBarChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(latestPrices),
+                datasets: [{
+                    label: 'Harga Pangan (Rp)',
+                    data: Object.values(latestPrices),
+                    backgroundColor: '#6e0b0b',
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

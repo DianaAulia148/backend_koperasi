@@ -1,0 +1,168 @@
+{% extends 'layouts/dashboard_base.html' %}
+{% block dashboard_content %}
+<div class="analytics-container">
+
+  <!-- Header Card -->
+  <div class="eco-hero-card" style="background: linear-gradient(135deg, #064e3b 0%, #10b981 100%); box-shadow:0 15px 40px rgba(16,185,129,0.3);">
+    <div class="eco-hero-left">
+      <div class="eco-hero-icon"><i class="material-icons-round">currency_exchange</i></div>
+      <div>
+        <p class="eco-hero-label">Kurs JISDOR USD/IDR Terkini</p>
+        <h1 class="eco-hero-value">
+          {% if data %}Rp {{ "{:,.0f}".format(data[0].kurs_jisdor).replace(',', '.') }}{% else %}—{% endif %}
+        </h1>
+        <p class="eco-hero-sub">Tanggal: {% if data %}{{ data[0].tanggal_str }}{% else %}—{% endif %}</p>
+      </div>
+    </div>
+    <div class="eco-hero-right">
+      <span class="eco-badge">🟢 Real-Time • MongoDB Atlas</span>
+      <p style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:8px;">Sumber: Bank Indonesia</p>
+    </div>
+  </div>
+
+  <!-- Chart -->
+  <div class="eco-card-white">
+    <div class="eco-card-header">
+      <h3>Tren Kurs JISDOR (IDR per 1 USD)</h3>
+    </div>
+    <div style="height:380px; position:relative;">
+      <canvas id="jisdorChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="ent-table-container" style="background:white; border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,0.05);">
+    <div class="ent-table-header" style="padding:25px 30px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f3efec; flex-wrap:wrap; gap:15px;">
+      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b;">Data Historis JISDOR</h3>
+      <div style="display:flex; align-items:center; gap:15px;">
+        <form method="GET" action="" style="display:flex; gap:10px; align-items:center; margin:0;">
+            <input type="date" name="start_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ start_date or '' }}">
+            <span style="color:#666; font-weight:bold;">-</span>
+            <input type="date" name="end_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ end_date or '' }}">
+            <button type="submit" class="ent-btn-page" style="background:#f3f3f3; color:#333; padding:8px 15px; border-radius:8px;">Filter</button>
+            <a href="{{ url_for('economic.export_excel', indicator='jisdor', start_date=start_date, end_date=end_date) }}" class="ent-btn-page" style="background:#10b981; color:white; border-color:#10b981; padding:8px 15px; border-radius:8px; display:flex; align-items:center; gap:5px; text-decoration:none;">
+                <i class="material-icons-round" style="font-size:16px;">download</i> Excel
+            </a>
+        </form>
+        <div class="ent-search-wrapper" style="width:200px;">
+          <i class="material-icons-round ent-search-icon">search</i>
+          <input type="text" id="jisdor-search" class="ent-search-input" placeholder="Cari...">
+        </div>
+      </div>
+    </div>
+    <div class="ent-table-wrapper">
+      <table class="ent-table" id="jisdor-table">
+        <thead>
+          <tr>
+            <th style="width:60px; text-align:center;">NO</th>
+            <th>TANGGAL</th>
+            <th style="text-align:right;">KURS (IDR/USD)</th>
+            <th style="text-align:center;">SATUAN</th>
+            <th style="text-align:center;">SUMBER</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in data %}
+          <tr>
+            <td style="text-align:center; font-weight:800; color:#6e0b0b;">{{ loop.index }}</td>
+            <td style="font-weight:700;">{{ item.tanggal_str }}</td>
+            <td style="text-align:right; font-weight:800; font-size:1.05rem; color:#10b981;">
+              Rp {{ "{:,.0f}".format(item.kurs_jisdor).replace(',', '.') }}
+            </td>
+            <td style="text-align:center; color:#888;">{{ item.satuan }}</td>
+            <td style="text-align:center;"><span class="eco-source-badge">{{ item.sumber }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" style="text-align:center; padding:60px; color:#999;">Tidak ada data tersedia.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="ent-pagination">
+      <div id="ent-count-info" style="font-size:0.85rem; color:#777;"></div>
+      <div id="jisdor-pagination"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .analytics-container { display:flex; flex-direction:column; gap:25px; padding:20px 0; }
+  .eco-hero-card { border-radius:24px; padding:35px; display:flex; justify-content:space-between; align-items:center; color:white; }
+  .eco-hero-left { display:flex; align-items:center; gap:25px; }
+  .eco-hero-icon { width:70px; height:70px; background:rgba(255,255,255,0.15); border-radius:16px; display:flex; align-items:center; justify-content:center; }
+  .eco-hero-icon i { font-size:36px; color:white; }
+  .eco-hero-label { font-size:0.85rem; color:rgba(255,255,255,0.7); margin:0 0 8px 0; }
+  .eco-hero-value { font-size:2.5rem; font-weight:900; margin:0; letter-spacing:-2px; }
+  .eco-hero-sub { font-size:0.85rem; color:rgba(255,255,255,0.6); margin:6px 0 0 0; }
+  .eco-hero-right { text-align:right; }
+  .eco-badge { background:rgba(255,255,255,0.15); padding:8px 16px; border-radius:20px; font-size:0.8rem; font-weight:700; }
+  .eco-card-white { background:white; border-radius:24px; padding:30px; box-shadow:0 10px 30px rgba(0,0,0,0.05); }
+  .eco-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; }
+  .eco-card-header h3 { margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b; }
+  .eco-source-badge { font-size:10px; background:#f3f3f3; padding:4px 10px; border-radius:6px; font-weight:700; color:#555; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  new SmartTable('jisdor-table', {
+    searchId: 'jisdor-search',
+    paginationId: 'jisdor-pagination',
+    perPage: 15
+  });
+
+  const labels = [];
+  const values = [];
+    
+  const rawData = [
+    {% for item in data|reverse %}
+      { label: '{{ item.tanggal_str }}', value: {{ item.kurs_jisdor }} },
+    {% endfor %}
+  ];
+    
+  let filteredData = rawData;
+  {% if not start_date and not end_date %}
+    const currentYear = new Date().getFullYear().toString();
+    filteredData = rawData.filter(d => d.label.includes(currentYear));
+  {% endif %}
+    
+  filteredData.forEach(d => {
+      labels.push(d.label);
+      values.push(d.value);
+  });
+
+  new Chart(document.getElementById('jisdorChart').getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Kurs JISDOR (IDR/USD)',
+        data: values,
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.1)',
+        fill: true, tension: 0.3, borderWidth: 3,
+        pointBackgroundColor: '#10b981', pointRadius: 3,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `  Rp ${ctx.raw.toLocaleString('id-ID')}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { color: '#94a3b8', callback: v => 'Rp ' + v.toLocaleString('id-ID') }
+        },
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 12 } }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}
