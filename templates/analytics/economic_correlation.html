@@ -19,7 +19,7 @@
         </div>
         <div class="insight-list">
             <div class="insight-item">
-                <div class="insight-text">Saat <strong>Inflasi</strong> meningkat di atas 4%, frekuensi <strong>Withdrawal</strong> anggota tercatat meningkat sebesar <strong>18%</strong>.</div>
+                <div class="insight-text">{{ insight_1 | safe }}</div>
             </div>
             <div class="insight-item">
                 <div class="insight-text">Kenaikan <strong>BI Rate</strong> cenderung menahan laju penarikan simpanan sukarela dalam 3 bulan terakhir.</div>
@@ -34,18 +34,18 @@
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
+                labels: {{ months | tojson }},
                 datasets: [
                     {
                         label: 'Inflasi (%)',
-                        data: [3.2, 3.5, 4.1, 4.8, 4.2, 3.8],
+                        data: {{ inflation_values | tojson }},
                         borderColor: '#ef4444',
                         yAxisID: 'y',
                         tension: 0.4
                     },
                     {
                         label: 'Withdrawal (Juta Rp)',
-                        data: [200, 220, 350, 580, 410, 300],
+                        data: {{ withdrawal_values | tojson }},
                         borderColor: '#6e0b0b',
                         yAxisID: 'y1',
                         tension: 0.4,

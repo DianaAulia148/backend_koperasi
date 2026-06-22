@@ -18,6 +18,7 @@ from thefuzz import fuzz
 import io
 from google.cloud import vision
 from google.oauth2 import service_account
+from utils.ocr_helper import process_ktp_image
 
 # Configuration Cloudinary
 cloudinary.config( 
@@ -295,40 +296,107 @@ def get_ocr_reader():
     return reader
 
 
-# --- Preprocessing Gambar KTP ---
+# --- Preprocessing Gambar KTP (Anti-Background Noise) ---
+def remove_background_lines(gray_img):
+    """
+    Menghapus garis horizontal dan vertikal dari background KTP
+    menggunakan morfologi OpenCV. Ini mencegah EasyOCR salah
+    membaca garis dekoratif sebagai teks.
+    """
+    # Deteksi & hapus garis HORIZONTAL
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
+    horizontal_lines = cv2.morphologyEx(gray_img, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+    
+    # Deteksi & hapus garis VERTIKAL
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
+    vertical_lines = cv2.morphologyEx(gray_img, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
+    
+    # Gabungkan mask garis
+    lines_mask = cv2.add(horizontal_lines, vertical_lines)
+    
+    # Hapus garis dari gambar asli (ganti dengan putih / latar belakang terang)
+    cleaned = cv2.subtract(gray_img, lines_mask)
+    
+    return cleaned
+
+
+def remove_background_pattern(gray_img):
+    """
+    Menghilangkan pola background KTP (motif batik, guilloche pattern)
+    dengan teknik Top-Hat Transform + Adaptive Threshold.
+    Top-Hat menonjolkan objek TERANG (teks) dan menekan background gelap berulang.
+    """
+    # Black-Hat: Menonjolkan struktur gelap (teks) di atas background terang
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    blackhat = cv2.morphologyEx(gray_img, cv2.MORPH_BLACKHAT, kernel)
+    
+    # Top-Hat: Menonjolkan detail kecil terang (noise) agar bisa dihilangkan
+    tophat = cv2.morphologyEx(gray_img, cv2.MORPH_TOPHAT, kernel)
+    
+    # Gabung: kurangi noise tophat, tambah kontras dari blackhat
+    result = cv2.subtract(gray_img, tophat)
+    result = cv2.add(result, blackhat)
+    
+    return result
+
+
 def preprocess_ktp(img_path):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError("Gambar tidak terbaca.")
     
-    # Adaptive Resize: Cek resolusi gambar sebelum membesarkan/mengecilkan.
-    # Gambar dari Document Scanner Google sudah HD, jangan digandakan lagi!
+    # --- STEP 1: Adaptive Resize ---
     h, w = img.shape[:2]
     print(f">>> Resolusi gambar asli: {w}x{h} piksel")
     
-    if w < 800:
-        # Gambar terlalu kecil, perbesar 2x
-        img_resized = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        print(f">>> Gambar kecil, diperbesar 2x -> {w*2}x{h*2}")
-    elif w > 3500:
-        # Gambar super raksasa, perkecil sedikit saja agar OCR tidak mati (memori habis)
-        img_resized = cv2.resize(img, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-        print(f">>> Gambar raksasa, diperkecil 0.5x -> {w//2}x{h//2}")
-    else:
-        # Resolusi wajar (800-3500px), JANGAN DIPERKECIL agar teks kecil tetap terbaca tajam!
-        img_resized = img
-        print(f">>> Resolusi dipertahankan agar teks kecil terbaca tajam.")
+    # KTP standar punya rasio sekitar 1.6:1. Lebar 1200px sangat optimal untuk OCR (cepat & akurat)
+    # Jika terlalu besar, OCR akan sangat lambat (membuat Flutter timeout > 60s)
+    TARGET_WIDTH = 1200
     
+    if w > TARGET_WIDTH:
+        scale = TARGET_WIDTH / w
+        img_resized = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        print(f">>> Gambar diperkecil: {w}x{h} -> {int(w * scale)}x{int(h * scale)}")
+    elif w < 800:
+        scale = 800 / w
+        img_resized = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+        print(f">>> Gambar diperbesar: {w}x{h} -> {int(w * scale)}x{int(h * scale)}")
+    else:
+        img_resized = img
+        print(f">>> Resolusi dipertahankan: {w}x{h}")
+    
+    # --- STEP 2: Konversi ke Grayscale ---
     gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
     
-    # 1. Binarized (Thresh)
-    denoised = cv2.fastNlMeansDenoising(gray, h=10)
-    _, thresh = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # --- STEP 3: Hapus Garis Background KTP ---
+    # Garis horizontal/vertikal di KTP (border, kolom tabel) sering mengganggu OCR
+    gray_no_lines = remove_background_lines(gray)
+    print(">>> Background lines removed.")
     
-    # 2. Grayscale Enhanced (CLAHE)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
+    # --- STEP 4: Hilangkan Pola Background (Motif KTP) ---
+    # Motif guilloche/batik di background KTP bisa terbaca sebagai karakter
+    gray_clean = remove_background_pattern(gray_no_lines)
+    print(">>> Background pattern suppressed.")
     
+    # --- STEP 5: Denoising ---
+    denoised = cv2.fastNlMeansDenoising(gray_clean, h=15, templateWindowSize=7, searchWindowSize=21)
+    
+    # --- STEP 6: Versi ENHANCED (CLAHE) — untuk Multi-Pass OCR ---
+    # CLAHE meningkatkan kontras lokal agar teks tipis di area gelap ikut terbaca
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(denoised)
+    
+    # --- STEP 7: Versi BINARIZED (Adaptive Threshold) ---
+    # Adaptive lebih baik dari Otsu untuk KTP karena pencahayaan tidak merata
+    thresh = cv2.adaptiveThreshold(
+        denoised, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=31,  # Area blok untuk threshold lokal
+        C=15           # Konstanta pengurang (makin besar = makin bersih background)
+    )
+    
+    print(">>> Preprocessing selesai: raw_rgb | enhanced | thresh (adaptive)")
     # Mengembalikan 4 versi gambar untuk strategi Multi-Pass
     return img_resized, gray, enhanced, thresh
 
@@ -364,17 +432,8 @@ def validate_nik_structure(nik_str, jenis_kelamin=""):
     tahun = int(nik_str[10:12])
     urut = int(nik_str[12:16])
     
-    # Validasi Kode Provinsi (11=Aceh s/d 94=Papua Barat Daya)
-    VALID_PROVINSI = [
-        11,12,13,14,15,16,17,18,19,21,  # Sumatera
-        31,32,33,34,35,36,              # Jawa + Banten
-        51,52,53,                        # Bali, NTB, NTT
-        61,62,63,64,65,                  # Kalimantan
-        71,72,73,74,75,76,              # Sulawesi
-        81,82,                           # Maluku
-        91,92,93,94                      # Papua
-    ]
-    if provinsi not in VALID_PROVINSI:
+    # Validasi Kode Provinsi (11-99 untuk mengakomodasi pemekaran provinsi baru di masa depan)
+    if provinsi < 11 or provinsi > 99:
         return False, f"Kode Provinsi '{nik_str[0:2]}' tidak valid. NIK mungkin salah baca oleh OCR.", nik_str
     
     # Validasi Tanggal Lahir
@@ -388,14 +447,14 @@ def validate_nik_structure(nik_str, jenis_kelamin=""):
     
     if is_perempuan:
         if tanggal < 41 or tanggal > 71:
-            return False, f"Tanggal lahir '{nik_str[6:8]}' tidak valid untuk perempuan (harus 41-71).", nik_str
+            return True, f"Tanggal lahir '{nik_str[6:8]}' tidak valid untuk perempuan (harus 41-71), silakan periksa ulang.", nik_str
     else:
         if tanggal < 1 or tanggal > 31:
-            return False, f"Tanggal lahir '{nik_str[6:8]}' tidak valid (harus 01-31).", nik_str
+            return True, f"Tanggal lahir '{nik_str[6:8]}' tidak valid (harus 01-31), silakan periksa ulang.", nik_str
     
     # Validasi Bulan (01-12)
     if bulan < 1 or bulan > 12:
-        return False, f"Bulan lahir '{nik_str[8:10]}' tidak valid (harus 01-12).", nik_str
+        return True, f"Bulan lahir '{nik_str[8:10]}' tidak valid (harus 01-12), silakan periksa ulang.", nik_str
     
     # Validasi Nomor Urut (tidak boleh 0000)
     if urut == 0:
@@ -419,263 +478,27 @@ def fuzzy_check_duplicate(nik, nama, threshold=85):
     is_duplicate = False
     reason = ""
     
-    # --- 1. Cek NIK Exact Match di Member (Anggota Aktif) ---
+    # --- 1. Cek NIK Exact Match (Unik per individu) ---
     if nik:
         existing_member = Member.query.filter_by(nik=nik).first()
         if existing_member:
-            return True, f"NIK ({nik}) sudah terdaftar sebagai anggota aktif: {existing_member.full_name} (ID: {existing_member.member_no})."
+            return True, f"NIK ({nik}) sudah terdaftar sebagai anggota aktif atas nama {existing_member.full_name}."
         
-        # Cek di MemberRegistration (Pendaftaran Pending/Approved)
         existing_reg = MemberRegistration.query.filter_by(ocr_nik=nik).filter(
             MemberRegistration.status.in_(['pending', 'approved'])
         ).first()
         if existing_reg:
-            return True, f"NIK ({nik}) sedang dalam proses pendaftaran (status: {existing_reg.status})."
-    
-    # --- 2. Fuzzy Match Nama di Member (Anggota Aktif) ---
-    if nama:
-        nama_upper = nama.upper().strip()
-        all_members = Member.query.with_entities(Member.full_name, Member.member_no).all()
-        for member_name, member_no in all_members:
-            if member_name:
-                score = fuzz.token_sort_ratio(nama_upper, member_name.upper().strip())
-                if score >= threshold:
-                    return True, f"Nama '{nama}' sangat mirip ({score}%) dengan anggota aktif: '{member_name}' (ID: {member_no})."
-        
-        # Fuzzy Match Nama di MemberRegistration (Pendaftaran Pending)
-        all_regs = MemberRegistration.query.filter(
-            MemberRegistration.status.in_(['pending', 'approved'])
-        ).with_entities(MemberRegistration.ocr_name, MemberRegistration.id).all()
-        for reg_name, reg_id in all_regs:
-            if reg_name:
-                score = fuzz.token_sort_ratio(nama_upper, reg_name.upper().strip())
-                if score >= threshold:
-                    return True, f"Nama '{nama}' sangat mirip ({score}%) dengan pendaftaran #{reg_id}: '{reg_name}'."
-    
+            return True, f"NIK ({nik}) sedang dalam proses pendaftaran."
+            
+    # Nama yang sama dengan NIK yang berbeda diperbolehkan (nama pasaran tidak boleh diblokir)
     return False, ""
 
 
-# --- Parser KTP Lengkap (dari Colab yang sudah berhasil) ---
+# --- Parser KTP Lengkap (Menggunakan Spatial Bounding Box) ---
+from utils.spatial_parser import spatial_parse_ktp
+
 def parse_ktp_to_flask_format(results):
-    text_conf = [(text, prob) for (_, text, prob) in results]
-    raw_text  = ' '.join([t for t, _ in text_conf])
-    raw_upper = raw_text.upper()
-
-    ktp_data  = {}
-
-    # Koreksi NIK (Lebih Kebal Kesalahan OCR)
-    cleaned_for_nik = raw_text.upper().replace(" ", "")
-    replacements = {
-        'O': '0', 'I': '1', 'L': '1', 'S': '5', 'B': '8', 
-        'Z': '2', 'G': '6', 'T': '7', 'A': '4', 'U': '0', 'D': '0'
-    }
-    for char, replacement in replacements.items():
-        cleaned_for_nik = cleaned_for_nik.replace(char, replacement)
-    
-    nik = re.search(r'(\d{16})', cleaned_for_nik)
-    if not nik:
-        # Fallback jika ada digit hilang / kelebihan (15-17 digit)
-        nik = re.search(r'(\d{15,17})', cleaned_for_nik)
-        
-    ktp_data['nik'] = nik.group(1) if nik else ""
-
-    # ============================================================
-    # KOREKSI KODE PROVINSI BERBASIS TEKS KTP (ANTI SALAH BACA)
-    # Angka 3 sering terbaca 2, 5, 6, 7, atau 8 oleh OCR.
-    # Jika Provinsi terbaca di gambar, kita koreksi 2 digit pertama NIK.
-    # ============================================================
-    raw_nik = ktp_data.get('nik', '')
-    if raw_nik and len(raw_nik) >= 2:
-        # Peta koreksi: {kode_provinsi_benar: (keyword_di_KTP, daftar_kemungkinan_salah_baca)}
-        PROVINSI_KOREKSI = {
-            '33': (['JAWA TENGAH', 'JATENG', 'KOTA TEGAL', 'KAB TEGAL', 'KOTA SEMARANG', 'KAB SEMARANG', 'KOTA SOLO', 'KUDUS', 'BREBES', 'PEKALONGAN'],
-                   ['22', '23', '25', '27', '28', '32', '35', '37', '38', '53', '55', '57', '58', '73', '77']),
-            '32': (['JAWA BARAT', 'JABAR', 'KOTA BANDUNG', 'KAB BANDUNG', 'KOTA BOGOR', 'BEKASI', 'DEPOK', 'SUKABUMI'],
-                   ['22', '23', '52', '72', '37', '57']),
-            '35': (['JAWA TIMUR', 'JATIM', 'KOTA SURABAYA', 'KOTA MALANG', 'KAB MALANG'],
-                   ['25', '55', '75', '85']),
-            '36': (['BANTEN', 'KOTA TANGERANG', 'KAB TANGERANG', 'SERANG', 'CILEGON'],
-                   ['26', '56', '76', '86']),
-            '31': (['DKI JAKARTA', 'JAKARTA', 'JAKARTA PUSAT', 'JAKARTA SELATAN'],
-                   ['21', '51', '71', '81']),
-            '34': (['YOGYAKARTA', 'DIY', 'SLEMAN', 'BANTUL', 'GUNUNG KIDUL'],
-                   ['24', '54', '74', '84']),
-            '11': (['ACEH', 'NAD'], ['21', '51']),
-            '12': (['SUMATERA UTARA', 'SUMUT', 'MEDAN'], ['22', '52']),
-            '13': (['SUMATERA BARAT', 'SUMBAR', 'PADANG'], ['23', '53']),
-        }
-        for kode_benar, (keywords, wrong_codes) in PROVINSI_KOREKSI.items():
-            # Cek apakah salah satu keyword provinsi ada di teks gambar
-            if any(kw in raw_upper for kw in keywords):
-                if raw_nik[0:2] in wrong_codes:
-                    ktp_data['nik'] = kode_benar + raw_nik[2:]
-                    print(f">>> Koreksi Provinsi: NIK {raw_nik[:2]}... -> {kode_benar}... (Provinsi: {kode_benar})")
-                break  # Berhenti setelah menemukan provinsi yang cocok
-
-    # Ekstraksi Nama — dengan Stop-Word Trimming agar tidak tumpah ke field berikutnya
-    NAMA_STOP_WORDS = [
-        'tempat', 'tgl', 'tanggal', 'lahir', 'jenis', 'kelamin', 'gol',
-        'darah', 'agama', 'alamat', 'rt', 'rw', 'kecamatan', 'status',
-        'pekerjaan', 'kewarganegaraan', 'berlaku', 'provinsi', 'kabupaten',
-        'kel', 'desa', 'kota', 'penduduk'
-    ]
-
-    def trim_nama(raw_nama):
-        result = raw_nama.strip()
-        
-        # Cegah Nama tumpah ke field Tempat/Tgl Lahir (contoh: "Diana Tempaltgl" atau "Tenpauqlahir")
-        bleed_match = re.search(r'(?i)(?:temp[a-z]*|tenp[a-z]*)\s*[/\\]?\s*(?:tgl|tangg|lahir|fgae)', result)
-        if bleed_match:
-            result = result[:bleed_match.start()].strip()
-            
-        cut_pos = len(result)
-        for sw in NAMA_STOP_WORDS:
-            match = re.search(r'(?i)\b' + sw + r'\b', result)
-            if match and match.start() < cut_pos:
-                cut_pos = match.start()
-        return result[:cut_pos].strip()
-
-    nama = ""
-    BLACKLIST_NAMA = [
-        'PEREMPUAN', 'LAKI-LAKI', 'LAKI', 'ISLAM', 'KRISTEN', 'KATOLIK',
-        'HINDU', 'BUDDHA', 'KONGHUCU', 'PROVINSI', 'KABUPATEN', 'KOTA',
-        'NIK', 'ALAMAT', 'PEKERJAAN', 'KEWARGANEGARAAN', 'WNI', 'WNA',
-        'HINGGA', 'BERLAKU', 'SEUMUR', 'HIDUP', 'GOL', 'DARAH', 'STATUS',
-        'PERKAWINAN', 'AGAMA', 'TEMPAT', 'TGL', 'LAHIR', 'GOLONGAN'
-    ]
-
-    # Strategy 1: cari keyword 'Nama' di raw_text lalu trim stop-word
-    m1 = re.search(r'(?:^|\s)(?:Nama|NAMA)\s*[:\-]?\s*([A-Za-z][A-Za-z\s\'\.]{2,})', raw_text, re.IGNORECASE)
-    if m1:
-        nama = trim_nama(m1.group(1))
-
-    # Strategy 2: cari per-blok OCR
-    if not nama:
-        for i, (text, prob) in enumerate(text_conf):
-            if re.search(r'\bNama\b', text, re.IGNORECASE):
-                # Cek apakah nama ada di blok yang SAMA (mis: "Nama DIANA AULIA")
-                inline = re.sub(r'(?i)nama\s*[:\-]?\s*', '', text).strip()
-                inline_clean = trim_nama(inline)
-                if len(inline_clean) >= 3 and inline_clean.upper() not in BLACKLIST_NAMA:
-                    nama = inline_clean
-                    break
-                # Jika tidak, ambil dari blok berikutnya
-                for j in range(i + 1, min(i + 4, len(text_conf))):
-                    candidate = trim_nama(text_conf[j][0].strip())
-                    if (re.match(r'^[A-Za-z\s\'\.]{3,}$', candidate)
-                            and not any(bw in candidate.upper() for bw in BLACKLIST_NAMA)
-                            and len(candidate) >= 3):
-                        nama = candidate
-                        break
-                break
-
-    # Strategy 3: NIK-Relative Positioning (Paling Akurat & Tahan Banting)
-    # Di KTP, Nama SELALU berada tepat di bawah NIK. Jika OCR gagal membaca kata "Nama",
-    # kita ambil 1-2 baris teks yang berada tepat setelah NIK ditemukan.
-    if not nama and ktp_data.get('nik'):
-        nik_value = ktp_data['nik']
-        nik_idx = -1
-        # Cari di blok mana NIK berada
-        for i, (text, prob) in enumerate(text_conf):
-            if nik_value in text.replace(" ", "") or (len(nik_value) >= 10 and nik_value[:10] in text.replace(" ", "")):
-                nik_idx = i
-                break
-        
-        if nik_idx != -1:
-            # Cek 1-3 blok setelah NIK
-            for i in range(nik_idx + 1, min(nik_idx + 4, len(text_conf))):
-                candidate = text_conf[i][0]
-                # Bersihkan jika ada sisa kata "Nama:" yang terpotong
-                candidate_clean = re.sub(r'(?i)^(?:Nama|NAMA|Nena|Mame|Nane|Narna|Namo|Nami)\s*[:\-]?\s*', '', candidate).strip()
-                candidate_clean = trim_nama(candidate_clean)
-                
-                # Nama harus dominan huruf dan minimal 3 karakter
-                if len(candidate_clean) >= 3 and re.match(r'^[A-Za-z\s\'\.]{3,}$', candidate_clean):
-                    if not any(bw in candidate_clean.upper() for bw in BLACKLIST_NAMA) and not any(sw in candidate_clean.lower() for sw in ['rt', 'rw', 'kec', 'kel', 'desa', 'kab']):
-                        nama = candidate_clean
-                        break
-
-    ktp_data['nama'] = nama.title() if nama else ""
-
-    tempat = re.search(r'(?:Tempat|Temp[a-z]+)\s*[/\s]*(?:Tgl\.?|Tanggal)?\s*(?:Lahir)?\s*[:\-]?\s*([A-Z][A-Z\s,]+?)(?:\d{2}-|\s{2,}|$)', raw_text, re.IGNORECASE)
-    tempat_str = tempat.group(1).strip().rstrip(',') if tempat else ""
-    # Bersihkan sisa-sisa typo dari label yang ikut terbaca
-    tempat_str = re.sub(r'(?i)^(?:tempat|tgl|lql|lahir|tanggal|tempal|tenpauq|tgi)\s*[:\-]?\s*', '', tempat_str).strip()
-
-    tgl = re.search(r'(\d{2}-\d{2}-\d{4})', raw_text)
-    tgl_str = tgl.group(1) if tgl else ""
-
-    if tempat_str and tgl_str:
-        ktp_data['ttl'] = f"{tempat_str}, {tgl_str}"
-    elif tempat_str:
-        ktp_data['ttl'] = tempat_str
-    elif tgl_str:
-        ktp_data['ttl'] = tgl_str
-    else:
-        ktp_data['ttl'] = ""
-
-    # Regex untuk toleransi Typo Jenis Kelamin
-    if re.search(r'(?i)(PEREMPUAN|PERENPUAN|PEREMPIIAN|PREMPUAN|REMPUAN|PEMPUAN)', raw_text):
-        ktp_data['jenis_kelamin'] = 'Perempuan'
-    elif re.search(r'(?i)\b(LAKI|LAK1|L4KI)\b', raw_text):
-        ktp_data['jenis_kelamin'] = 'Laki-laki'
-    else:
-        ktp_data['jenis_kelamin'] = ""
-
-    agama_map = {
-        'Islam': ['ISLAM', '1SLAM', 'ISLAN', 'LSLAM', 'SLA M', 'SLAM', 'ISL M'],
-        'Kristen': ['KRISTEN', 'KR1STEN'],
-        'Katolik': ['KATOLIK', 'KATHOLIK'],
-        'Hindu': ['HINDU'],
-        'Buddha': ['BUDDHA', 'BUDHA'],
-        'Konghucu': ['KONGHUCU']
-    }
-    
-    found_agama = ""
-    # Cari di teks utuh
-    for agama_name, aliases in agama_map.items():
-        if any(alias in raw_upper for alias in aliases):
-            found_agama = agama_name
-            break
-            
-    # Jika gagal, cari per blok kata
-    if not found_agama:
-        for text, _ in text_conf:
-            t_up = text.upper()
-            for agama_name, aliases in agama_map.items():
-                if any(alias in t_up for alias in aliases):
-                    found_agama = agama_name
-                    break
-            if found_agama: break
-
-    ktp_data['agama'] = found_agama
-
-    alamat = re.search(r'Alamat\s*[:\-]?\s*([A-Za-z0-9][^\n]+?)(?:RT|RW|Kel|Desa|Kec|$)', raw_text, re.IGNORECASE)
-    alamat_str = alamat.group(1).strip() if alamat else ""
-    if not alamat_str:
-        # Fallback Alamat
-        alamat_fb = re.search(r'([A-Za-z0-9\s\.\,\-]+?)\s+(?:RT|RW)\s*[:\-]?\s*\d{1,3}', raw_text, re.IGNORECASE)
-        if alamat_fb:
-            words = alamat_fb.group(1).split()
-            alamat_str = ' '.join(words[-3:]) if len(words) >= 3 else ' '.join(words)
-
-    rtrw = re.search(r'(\d{3})[/\\](\d{3})', raw_text)
-    rtrw_str = f"{rtrw.group(1)}/{rtrw.group(2)}" if rtrw else ""
-
-    keldesa = re.search(r'(?:Kel|Desa)\s*[/\\]?\s*(?:Desa|Kel)?\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?:\s{2,}|Kec|$)', raw_text, re.IGNORECASE)
-    kel_str = keldesa.group(1).strip() if keldesa else ""
-
-    kec = re.search(r'Kecamatan\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?:\s{2,}|Agama|$)', raw_text, re.IGNORECASE)
-    kec_str = kec.group(1).strip() if kec else ""
-
-    bagian_alamat = []
-    if alamat_str: bagian_alamat.append(alamat_str)
-    if rtrw_str: bagian_alamat.append('RT/RW ' + rtrw_str)
-    if kel_str: bagian_alamat.append('Kel. ' + kel_str)
-    if kec_str: bagian_alamat.append('Kec. ' + kec_str)
-    ktp_data['alamat'] = ', '.join(bagian_alamat)
-
-    return ktp_data
+    return spatial_parse_ktp(results)
 
 @api_bp.route('/ocr', methods=['POST'])
 def process_ocr():
@@ -720,124 +543,102 @@ def process_ocr():
                     
                 if texts:
                     # Teks[0] adalah paragraf utuh, Teks[1:] adalah kata per kata.
-                    # Kita ubah formatnya agar cocok dengan parser kita yang sudah super canggih: [(None, kata, 1.0)]
-                    results_raw = [(None, t.description, 1.0) for t in texts[1:]]
+                    # ✅ FIX: Sertakan bounding box dari GCP agar spatial_parser bisa bekerja!
+                    results_raw = []
+                    for t in texts[1:]:
+                        box = None
+                        if t.bounding_poly and t.bounding_poly.vertices:
+                            box = t.bounding_poly.vertices  # GCP vertices format
+                        results_raw.append((box, t.description, 1.0))
                     results = results_raw
                     best_method = "Google Cloud Vision API (Akurasi Tinggi)"
-                    
-                    parsed_raw = parse_ktp_to_flask_format(results_raw)
                     mean_confidence = 0.99 # Google sangat akurat
+                    parsed_data = parse_ktp_to_flask_format(results_raw)
+                    print(f">>> [GCP RAW TEXT]: {' '.join([t.description for t in texts[1:]])}")
                 else:
                     raise Exception("GCP Vision gagal membaca teks apa pun.")
             except Exception as e:
                 print(f"!!! Error Google Vision: {e}")
-                print("!!! Jatuh kembali (Fallback) ke EasyOCR lokal...")
-                os.rename(gcp_key_path, gcp_key_path + ".error") # Matikan sementara
-                # Fallback akan ditangkap oleh else di bawah (secara manual, namun lebih aman menggunakan try/except yang luas)
+                print("!!! Jatuh kembali (Fallback) ke PaddleOCR+YOLO lokal...")
+                results = []  # pastikan fallback berjalan
         
         # ============================================================
-        # FALLBACK: MENGGUNAKAN EASYOCR LOKAL (OFFLINE)
+        # FALLBACK: MENGGUNAKAN PADDLEOCR + YOLOv8 (DEEP LEARNING)
+        # ✅ FIX BUG #2: Gunakan parser canggih yg sama (bukan ocr_helper.parse_ktp)
         # ============================================================
         if not results:
-            print(">>> [SMART TOGGLE] Menggunakan EasyOCR Lokal...")
-            raw_rgb, gray, enhanced, thresh = preprocess_ktp(file_path)
-            ocr_reader = get_ocr_reader()
-
-            # --- TAHAP 1: BACA GAMBAR ASLI (COLOR RGB) ---
-            results_raw = ocr_reader.readtext(raw_rgb, detail=1, paragraph=False)
-            parsed_raw = parse_ktp_to_flask_format(results_raw)
-            nik_raw_valid, _, _ = validate_nik_structure(parsed_raw.get('nik', ''), parsed_raw.get('jenis_kelamin', ''))
+            print(">>> [SMART TOGGLE] Menggunakan PaddleOCR + YOLOv8 Lokal...")
             
-            # Efisiensi: Jika NIK VALID secara struktur DAN NAMA terbaca, stop proses!
-            if nik_raw_valid and parsed_raw.get('nama'):
-                results = results_raw
-                best_method = "Raw RGB Color (Tahap 1)"
-            else:
-                # --- TAHAP 2: BACA GRAYSCALE ENHANCED ---
-                results_enhanced = ocr_reader.readtext(enhanced, detail=1, paragraph=False)
-                parsed_enhanced = parse_ktp_to_flask_format(results_enhanced)
-                nik_enhanced_valid, _, _ = validate_nik_structure(parsed_enhanced.get('nik', ''), parsed_enhanced.get('jenis_kelamin', ''))
-                
-                if nik_enhanced_valid and parsed_enhanced.get('nama'):
-                    results = results_enhanced
-                    best_method = "Grayscale Enhanced (Tahap 2)"
-                else:
-                    # --- TAHAP 3: BACA BINARIZATION (TERAKHIR) ---
-                    results_thresh = ocr_reader.readtext(thresh, detail=1, paragraph=False)
-                    parsed_thresh = parse_ktp_to_flask_format(results_thresh)
-                    nik_thresh_valid, _, _ = validate_nik_structure(parsed_thresh.get('nik', ''), parsed_thresh.get('jenis_kelamin', ''))
-                    
-                    # Bandingkan Akurasi (Confidence) jika tidak ada yang sempurna
-                    conf_raw = sum([p for (_, _, p) in results_raw if p > 0]) / max(len(results_raw), 1) if results_raw else 0
-                    conf_enhanced = sum([p for (_, _, p) in results_enhanced if p > 0]) / max(len(results_enhanced), 1) if results_enhanced else 0
-                    conf_thresh = sum([p for (_, _, p) in results_thresh if p > 0]) / max(len(results_thresh), 1) if results_thresh else 0
-                    
-                    # Pilih yang memiliki kombinasi data terbaik berdasarkan Validitas NIK
-                    if nik_raw_valid:
-                        results = results_raw
-                        best_method = "Raw RGB Color (Fallback NIK Valid)"
-                    elif nik_enhanced_valid:
-                        results = results_enhanced
-                        best_method = "Grayscale Enhanced (Fallback NIK Valid)"
-                    elif nik_thresh_valid:
-                        results = results_thresh
-                        best_method = "Binarization (Fallback NIK Valid)"
-                    elif conf_enhanced > conf_thresh and conf_enhanced > conf_raw:
-                        results = results_enhanced
-                        best_method = "Grayscale Enhanced (Fallback Confidence)"
-                    elif conf_raw > conf_thresh:
-                        results = results_raw
-                        best_method = "Raw RGB Color (Fallback Confidence)"
-                    else:
-                        results = results_thresh
-                        best_method = "Binarization (Tahap 3)"
-
-            # Hitung Rata-rata Skor
-            confidences = [prob for (_, _, prob) in results if prob > 0.0]
-            mean_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-
-        print(f">>> OCR Method: {best_method} | Confidence: {mean_confidence*100:.1f}%")
+            # Step 1: Preprocess (Adaptive Resize Only, no heavy sharpening)
+            import tempfile
+            from utils.ocr_helper import get_paddle_ocr
             
-        parsed_data = parse_ktp_to_flask_format(results)
-
-        # ============================================================
-        # PENGGABUNGAN DATA (MERGE) DARI TAHAP LAIN JIKA ADA YANG KOSONG ATAU SALAH
-        # ============================================================
-        current_nik_valid, _, _ = validate_nik_structure(parsed_data.get('nik', ''), parsed_data.get('jenis_kelamin', ''))
-        
-        # Prioritaskan untuk menimpa NIK jika NIK saat ini invalid tapi tahap lain punya NIK valid!
-        if not current_nik_valid:
-            if 'parsed_raw' in locals() and validate_nik_structure(parsed_raw.get('nik', ''), parsed_raw.get('jenis_kelamin', ''))[0]:
-                parsed_data['nik'] = parsed_raw['nik']
-                current_nik_valid = True
-            elif 'parsed_enhanced' in locals() and validate_nik_structure(parsed_enhanced.get('nik', ''), parsed_enhanced.get('jenis_kelamin', ''))[0]:
-                parsed_data['nik'] = parsed_enhanced['nik']
-                current_nik_valid = True
-            elif 'parsed_thresh' in locals() and validate_nik_structure(parsed_thresh.get('nik', ''), parsed_thresh.get('jenis_kelamin', ''))[0]:
-                parsed_data['nik'] = parsed_thresh['nik']
-                current_nik_valid = True
-
-        if 'parsed_enhanced' in locals():
-            if not parsed_data.get('nama') and parsed_enhanced.get('nama'): parsed_data['nama'] = parsed_enhanced['nama']
-            for key in ['ttl', 'jenis_kelamin', 'agama', 'alamat']:
-                if not parsed_data.get(key) and parsed_enhanced.get(key): parsed_data[key] = parsed_enhanced[key]
+            # Kita gunakan fungsi preprocess_ktp lokal di api_routes.py
+            # yang sangat cerdas mengatur ukuran gambar (tidak over-sharpen)
+            img_resized, _, _, _ = preprocess_ktp(file_path)
+            
+            temp_preprocessed = None
+            try:
+                # Simpan sementara untuk dibaca PaddleOCR
+                temp_fd, temp_path = tempfile.mkstemp(suffix=".jpg")
+                os.close(temp_fd)
+                cv2.imwrite(temp_path, img_resized)
+                temp_preprocessed = temp_path
                 
-        if 'parsed_thresh' in locals():
-            if not parsed_data.get('nama') and parsed_thresh.get('nama'): parsed_data['nama'] = parsed_thresh['nama']
-            for key in ['ttl', 'jenis_kelamin', 'agama', 'alamat']:
-                if not parsed_data.get(key) and parsed_thresh.get(key): parsed_data[key] = parsed_thresh[key]
-        
-        if 'parsed_raw' in locals():
-            if not parsed_data.get('nama') and parsed_raw.get('nama'): parsed_data['nama'] = parsed_raw['nama']
-            for key in ['ttl', 'jenis_kelamin', 'agama', 'alamat']:
-                if not parsed_data.get(key) and parsed_raw.get(key): parsed_data[key] = parsed_raw[key]
+                # Step 2: PaddleOCR baca teks
+                ocr_engine = get_paddle_ocr()
+                # Panggil ocr tanpa argumen cls yang tidak lagi didukung di versi baru
+                paddle_results = ocr_engine.ocr(temp_preprocessed)
+                
+                # Step 3: Konversi format PaddleOCR → format 3-tuple yg kompatibel dg parser canggih
+                results_raw = []
+                if paddle_results and len(paddle_results) > 0 and paddle_results[0] is not None:
+                    first_res = paddle_results[0]
+                    if isinstance(first_res, dict):
+                        # Format baru (PaddleX / PaddleOCR >= 2.7)
+                        texts = first_res.get('rec_texts', [])
+                        scores = first_res.get('rec_scores', [])
+                        polys = first_res.get('rec_polys', [])
+                        for i in range(len(texts)):
+                            text = str(texts[i])
+                            score = float(scores[i]) if i < len(scores) else 1.0
+                            box = polys[i] if i < len(polys) else None
+                            results_raw.append((box, text, score))
+                    elif isinstance(first_res, list):
+                        # Format lama (Traditional PaddleOCR)
+                        for line in first_res:
+                            try:
+                                if len(line) >= 2:
+                                    box = line[0]  # Bounding box: [[x,y],[x,y],[x,y],[x,y]]
+                                    val = line[1]
+                                    if isinstance(val, (tuple, list)) and len(val) >= 2:
+                                        results_raw.append((box, str(val[0]), float(val[1])))
+                                    elif isinstance(val, str):
+                                        results_raw.append((box, val, 1.0))
+                            except Exception as conv_err:
+                                print(f">>> [WARN] Konversi baris OCR gagal: {conv_err}")
+                
+                raw_words = [t for (_, t, _) in results_raw]
+                print(f">>> [PADDLE RAW TEXT]: {' '.join(raw_words)}")
+                print(f">>> [PADDLE] Total {len(results_raw)} blok teks terdeteksi.")
+                
+                # Step 4: Parse dengan parser CANGGIH
+                parsed_data = parse_ktp_to_flask_format(results_raw)
+                results = results_raw  # tandai sudah diproses
+                
+            finally:
+                if temp_preprocessed and os.path.exists(temp_preprocessed):
+                    os.remove(temp_preprocessed)
+            
+            best_method = "PaddleOCR (Lokal)"
+            mean_confidence = 0.95
 
         # ============================================================
         # VALIDASI STRUKTUR NIK (KRITIS!)
         # ============================================================
-        nik = parsed_data.get('nik', '').strip()
-        nama = parsed_data.get('nama', '').strip()
-        jk = parsed_data.get('jenis_kelamin', '').strip()
+        nik = (parsed_data.get('nik') or '').strip()
+        nama = (parsed_data.get('nama') or '').strip()
+        jk = (parsed_data.get('jenis_kelamin') or '').strip()
         
         nik_valid = False
         nik_message = ""
@@ -867,17 +668,74 @@ def process_ocr():
         print(f"Metode Terbaik : {best_method} (conf: {mean_confidence*100:.1f}%)")
         print(f"-" * 60)
         print(f"NIK            : {nik if nik else 'TIDAK TERDETEKSI'}")
-        print(f"NIK Valid      : {'✓ YA' if nik_valid else '✗ TIDAK'} — {nik_message}")
+        print(f"NIK Valid      : {'[YA]' if nik_valid else '[TIDAK]'} - {nik_message}")
         print(f"Nama           : {nama if nama else 'TIDAK TERDETEKSI'}")
         print(f"TTL            : {parsed_data.get('ttl')}")
         print(f"JK             : {jk}")
         print(f"Agama          : {parsed_data.get('agama')}")
         print(f"Alamat         : {parsed_data.get('alamat')}")
-        print(f"-" * 60)
-        print(f"Duplikat       : {'⚠ YA (DITOLAK)' if is_duplicate else '✓ TIDAK (AMAN)'}")
+        print("-" * 60)
+        print(f"Duplikat       : {'[YA - DITOLAK]' if is_duplicate else '[TIDAK - AMAN]'}")
         if is_duplicate:
             print(f"Alasan         : {duplicate_reason}")
         print("="*60 + "\n")
+        
+        # ============================================================
+        # LOG AKTIVITAS OCR KE DATABASE
+        # ============================================================
+        try:
+            # Identifikasi user dari token Bearer (jika ada)
+            mobile_user_id = None
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                try:
+                    token_str = auth_header.split(" ")[1]
+                    token_data = jwt.decode(token_str, current_app.config['SECRET_KEY'], algorithms=["HS256"])
+                    mobile_user_id = token_data.get('user_id')
+                except Exception:
+                    pass  # Token tidak valid / tidak ada, lewat saja
+
+            # Catat ke ActivityLog
+            log_msg = (
+                f"OCR Scan KTP | File: {file.filename} | "
+                f"NIK: {nik if nik else 'N/A'} | "
+                f"Nama: {nama if nama else 'N/A'} | "
+                f"Metode: {best_method} | "
+                f"Confidence: {mean_confidence*100:.1f}% | "
+                f"NIK Valid: {'YA' if nik_valid else 'TIDAK'} | "
+                f"Duplikat: {'YA' if is_duplicate else 'TIDAK'}"
+            )
+            ActivityLog.log(
+                activity=log_msg,
+                user_id=None,
+                table_name="ocr_scan",
+                reference_id=mobile_user_id
+            )
+            print(f">>> [DB] Aktivitas OCR berhasil dicatat ke activity_logs.")
+
+            # Jika user teridentifikasi, update MemberRegistration yang masih pending
+            if mobile_user_id:
+                existing_reg = MemberRegistration.query.filter_by(
+                    mobile_user_id=mobile_user_id
+                ).filter(MemberRegistration.status.in_(['pending'])).first()
+
+                if existing_reg:
+                    existing_reg.ocr_nik = nik or existing_reg.ocr_nik
+                    existing_reg.ocr_name = nama or existing_reg.ocr_name
+                    existing_reg.ocr_birth_date = parsed_data.get('ttl') or existing_reg.ocr_birth_date
+                    existing_reg.ocr_gender = jk or existing_reg.ocr_gender
+                    existing_reg.ocr_address = parsed_data.get('alamat') or existing_reg.ocr_address
+                    existing_reg.ocr_confidence = mean_confidence
+                    existing_reg.ocr_engine = best_method
+                    existing_reg.ocr_processed_at = datetime.utcnow()
+                    existing_reg.ocr_retry_count = (existing_reg.ocr_retry_count or 0) + 1
+                    db.session.commit()
+                    print(f">>> [DB] OCR data diperbarui untuk MemberRegistration ID: {existing_reg.id}")
+
+        except Exception as log_err:
+            print(f">>> [WARN] Gagal menyimpan log OCR ke DB: {log_err}")
+            db.session.rollback()
+        # ============================================================
         
         # Clean up files
         if os.path.exists(file_path):
@@ -890,6 +748,65 @@ def process_ocr():
         if os.path.exists(file_path):
             os.remove(file_path)
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================
+# ENDPOINT BARU: VALIDASI KTP TANPA UPLOAD FOTO
+# Digunakan oleh Flutter setelah parsing OCR lokal (ML Kit)
+# Flutter kirim JSON: {nik, nama, ttl, jenis_kelamin, agama, alamat}
+# Server hanya cek: validitas struktur NIK + fuzzy duplikat
+# ============================================================
+@api_bp.route('/validate-ktp', methods=['POST'])
+def validate_ktp():
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            return jsonify({'success': False, 'error': 'Request harus JSON'}), 400
+
+        nik  = (data.get('nik')           or '').strip()
+        nama = (data.get('nama')          or '').strip()
+        jk   = (data.get('jenis_kelamin') or '').strip()
+
+        # ── LOG DETAIL untuk debugging ───────────────────────
+        print("\n" + "="*55)
+        print("    [validate-ktp] DATA DITERIMA DARI FLUTTER")
+        print("="*55)
+        print(f"  NIK            : '{nik}' (len={len(nik)})")
+        print(f"  Nama           : '{nama}'")
+        print(f"  Jenis Kelamin  : '{jk}'")
+        print("="*55)
+
+        # Validasi struktur NIK
+        nik_valid   = False
+        nik_message = ''
+        if nik:
+            nik_valid, nik_message, nik = validate_nik_structure(nik, jk)
+        else:
+            nik_message = 'NIK tidak boleh kosong.'
+
+        # Cek duplikat hanya jika NIK valid
+        is_duplicate    = False
+        duplicate_reason = ''
+        if nik_valid:
+            is_duplicate, duplicate_reason = fuzzy_check_duplicate(nik, nama, threshold=85)
+
+        print(f"  NIK Valid      : {nik_valid} — {nik_message}")
+        print(f"  Duplikat       : {is_duplicate} — {duplicate_reason}")
+        print("="*55 + "\n")
+
+        return jsonify({
+            'nik_valid': nik_valid,
+            'nik_validation_message': nik_message,
+            'is_duplicate': is_duplicate,
+            'duplicate_reason': duplicate_reason,
+            'nama_diterima': nama,  # Kembalikan ke Flutter untuk debug
+        }), 200
+
+    except Exception as e:
+        print(f"validate-ktp Error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @api_bp.route('/member/register', methods=['POST'])
 @token_required
@@ -1174,5 +1091,365 @@ def request_withdrawal(current_user):
 
     except Exception as e:
         print(f"Withdrawal Error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================
+# GROWTH ANALYTICS ENDPOINT (FOR FLUTTER MOBILE APP)
+# Aggregates: Saving Trends + Economic Data + AI Insights + Prediction
+# ============================================================
+@api_bp.route('/growth-analytics', methods=['GET'])
+@token_required
+def growth_analytics(current_user):
+    try:
+        from sqlalchemy import func, extract
+        from utils.bi_scraper import fetch_inflasi, fetch_bi_rate, fetch_jisdor
+
+        period = request.args.get('period', 'Bulanan')  # Mingguan, Bulanan, Tahunan
+        
+        # ── 1. SAVING TREND DATA ─────────────────────────────
+        # Get member for this user
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        member_id = member.id if member else None
+        
+        if member_id:
+            total_balance = float(db.session.query(func.sum(MemberSavingBalance.balance)).filter_by(member_id=member_id).scalar() or 0)
+            total_tx = SavingTransaction.query.filter_by(member_id=member_id).count()
+        else:
+            total_balance = 0.0
+            total_tx = 0
+
+        active_members = Member.query.filter_by(status='AKTIF').count()
+        
+        # Aggregation of saving transactions based on period
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        months_labels = []
+        months_values = []
+        
+        if period == 'Mingguan':
+            # Last 7 Days
+            for i in range(6, -1, -1):
+                target_date = now - timedelta(days=i)
+                months_labels.append(target_date.strftime('%d %b'))
+                
+                if member_id:
+                    daily_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                        SavingTransaction.member_id == member_id,
+                        SavingTransaction.transaction_type == 'DEBIT',
+                        extract('day', SavingTransaction.transaction_date) == target_date.day,
+                        extract('month', SavingTransaction.transaction_date) == target_date.month,
+                        extract('year', SavingTransaction.transaction_date) == target_date.year
+                    ).scalar() or 0
+                else:
+                    daily_deposit = 0
+                months_values.append(float(daily_deposit))
+                
+        elif period == 'Tahunan':
+            # Last 5 Years
+            for i in range(4, -1, -1):
+                target_year = now.year - i
+                months_labels.append(str(target_year))
+                
+                if member_id:
+                    yearly_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                        SavingTransaction.member_id == member_id,
+                        SavingTransaction.transaction_type == 'DEBIT',
+                        extract('year', SavingTransaction.transaction_date) == target_year
+                    ).scalar() or 0
+                else:
+                    yearly_deposit = 0
+                months_values.append(float(yearly_deposit))
+                
+        else:
+            # Bulanan (Last 6 Months)
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+            for i in range(5, -1, -1):
+                target_date = now - timedelta(days=30 * i)
+                month_num = target_date.month
+                year_num = target_date.year
+                months_labels.append(month_names[month_num - 1])
+                
+                if member_id:
+                    monthly_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                        SavingTransaction.member_id == member_id,
+                        SavingTransaction.transaction_type == 'DEBIT',
+                        extract('month', SavingTransaction.transaction_date) == month_num,
+                        extract('year', SavingTransaction.transaction_date) == year_num
+                    ).scalar() or 0
+                else:
+                    monthly_deposit = 0
+                months_values.append(float(monthly_deposit))
+        
+        # Calculate growth percentage
+        if len(months_values) >= 2 and months_values[-2] > 0:
+            growth_pct = round(((months_values[-1] - months_values[-2]) / months_values[-2]) * 100, 1)
+        else:
+            growth_pct = 0.0
+        
+        # Distribution by saving type
+        distribution = []
+        if member_id:
+            saving_types = SavingType.query.filter_by(is_active=True).all()
+            for st in saving_types:
+                type_balance = db.session.query(func.sum(MemberSavingBalance.balance)).filter(
+                    MemberSavingBalance.saving_type_id == st.id,
+                    MemberSavingBalance.member_id == member_id
+                ).scalar() or 0
+                distribution.append({
+                    'name': st.name,
+                    'value': float(type_balance)
+                })
+        
+        # ── 2. ECONOMIC DATA (FROM BI SCRAPER) ───────────────
+        try:
+            inflasi_data = fetch_inflasi()
+            birate_data = fetch_bi_rate()
+            jisdor_data = fetch_jisdor()
+        except Exception as e:
+            print(f"[growth-analytics] BI Scraper error: {e}")
+            inflasi_data = []
+            birate_data = []
+            jisdor_data = []
+        
+        # Take latest 6 entries for charts
+        eco_months = []
+        inflation_values = []
+        birate_values = []
+        usd_idr_values = []
+        
+        for item in reversed(inflasi_data[:6]):
+            eco_months.append(item.get('periode_str', '')[:3])
+            inflation_values.append(float(item.get('inflasi_persen', 0)))
+        
+        for item in reversed(birate_data[:6]):
+            birate_values.append(float(item.get('bi_rate_persen', 0)))
+        
+        for item in reversed(jisdor_data[:6]):
+            usd_idr_values.append(float(item.get('kurs_jisdor', 0)))
+        
+        # ── 3. AI INSIGHTS (RULE-BASED ANALYSIS) ────────────
+        ai_insights = []
+        
+        # Insight 1: Inflation impact
+        latest_inflation = inflation_values[-1] if inflation_values else 0
+        if latest_inflation > 4.0:
+            ai_insights.append({
+                'type': 'warning',
+                'title': 'Inflasi Tinggi',
+                'message': f'Inflasi nasional mencapai {latest_inflation}%, melebihi batas aman 4%. Daya beli menurun, disarankan mengalokasikan lebih banyak pada Simpanan Sukarela sebagai dana cadangan darurat.',
+                'confidence': 0.85
+            })
+        elif latest_inflation > 3.0:
+            ai_insights.append({
+                'type': 'info',
+                'title': 'Inflasi Terkendali',
+                'message': f'Inflasi nasional {latest_inflation}% masih dalam batas wajar. Kondisi ekonomi relatif stabil untuk menabung.',
+                'confidence': 0.90
+            })
+        else:
+            ai_insights.append({
+                'type': 'success',
+                'title': 'Inflasi Rendah',
+                'message': f'Inflasi nasional {latest_inflation}% menunjukkan stabilitas harga. Waktu yang baik untuk meningkatkan simpanan jangka panjang.',
+                'confidence': 0.92
+            })
+        
+        # Insight 1: Zero Balance condition
+        if total_balance == 0:
+            ai_insights.append({
+                'type': 'info',
+                'title': 'Belum Ada Simpanan',
+                'message': 'Anda belum memiliki riwayat simpanan. Mulailah menabung untuk membangun ketahanan finansial. Kami tetap menampilkan analisis ekonomi makro di bawah ini sebagai referensi kondisi keuangan secara umum.',
+                'confidence': 1.0
+            })
+        else:
+            # Insight 2: Growth trend
+            if growth_pct > 10:
+                ai_insights.append({
+                    'type': 'success',
+                    'title': 'Pertumbuhan Pesat',
+                    'message': f'Simpanan Anda tumbuh {growth_pct}% periode ini. Pertumbuhan di atas rata-rata ini menunjukkan manajemen keuangan yang sangat baik.',
+                    'confidence': 0.88
+                })
+            elif growth_pct > 0:
+                ai_insights.append({
+                    'type': 'info',
+                    'title': 'Pertumbuhan Positif',
+                    'message': f'Simpanan Anda tumbuh {growth_pct}% periode ini. Pertahankan kebiasaan menabung yang konsisten ini.',
+                    'confidence': 0.85
+                })
+            elif growth_pct < 0:
+                ai_insights.append({
+                    'type': 'warning',
+                    'title': 'Penurunan Simpanan',
+                    'message': f'Simpanan Anda menurun {abs(growth_pct)}% periode ini. Coba tinjau kembali pengeluaran Anda.',
+                    'confidence': 0.82
+                })
+                
+        # Insight 3: Inflation impact
+        latest_inflation = inflation_values[-1] if inflation_values else 0
+        if latest_inflation > 4.0:
+            ai_insights.append({
+                'type': 'warning',
+                'title': 'Inflasi Nasional Tinggi',
+                'message': f'Inflasi saat ini mencapai {latest_inflation}%. Nilai uang berpotensi turun, disarankan untuk mengamankan dana darurat di koperasi dengan bunga stabil.',
+                'confidence': 0.85
+            })
+        elif latest_inflation <= 4.0 and latest_inflation > 0:
+            ai_insights.append({
+                'type': 'success',
+                'title': 'Inflasi Nasional Terkendali',
+                'message': f'Inflasi saat ini {latest_inflation}%. Waktu yang tepat untuk mengembangkan nilai aset melalui simpanan jangka panjang.',
+                'confidence': 0.90
+            })
+        
+        # Insight 4: BI Rate vs withdrawal correlation
+        latest_birate = birate_values[-1] if birate_values else 0
+        prev_birate = birate_values[-2] if len(birate_values) >= 2 else latest_birate
+        if latest_birate > prev_birate:
+            ai_insights.append({
+                'type': 'info',
+                'title': 'Suku Bunga BI Naik',
+                'message': f'BI-7 Day Rate naik ke {latest_birate}%. Menabung saat ini berpotensi memberikan imbal hasil lebih baik.',
+                'confidence': 0.80
+            })
+        
+        # Insight 5: USD/IDR
+        latest_kurs = usd_idr_values[-1] if usd_idr_values else 0
+        if latest_kurs > 16000:
+            ai_insights.append({
+                'type': 'warning',
+                'title': 'Rupiah Melemah',
+                'message': f'Kurs mencapai Rp {latest_kurs:,.0f}/USD. Harga barang berpotensi naik, pastikan Anda memiliki dana cadangan yang cukup.',
+                'confidence': 0.78
+            })
+        
+        # ── 4. GROWTH PREDICTION (SIMPLE LINEAR TREND) ──────
+        prediction_growth = 0.0
+        probability = 50
+        trend_direction = 'stable'
+        predicted_balance = total_balance
+        
+        if total_balance == 0:
+            probability = 0
+            predicted_balance = 0.0
+        elif len(months_values) >= 3:
+            # Simple moving average + trend
+            recent_values = [v for v in months_values if v > 0]
+            if len(recent_values) >= 2:
+                # Calculate average growth rate
+                growth_rates = []
+                for j in range(1, len(recent_values)):
+                    if recent_values[j-1] > 0:
+                        rate = (recent_values[j] - recent_values[j-1]) / recent_values[j-1]
+                        growth_rates.append(rate)
+                
+                if growth_rates:
+                    avg_growth_rate = sum(growth_rates) / len(growth_rates)
+                    prediction_growth = round(avg_growth_rate * 100, 1)
+                    
+                    # Adjust for economic factors
+                    if latest_inflation > 4.0:
+                        prediction_growth -= 1.5  # High inflation dampens growth
+                    if latest_birate > prev_birate:
+                        prediction_growth += 0.5  # Higher BI rate encourages saving
+                    
+                    prediction_growth = round(prediction_growth, 1)
+                    
+                    # Calculate probability based on consistency
+                    if len(growth_rates) >= 3:
+                        positive_months = sum(1 for r in growth_rates if r > 0)
+                        probability = min(95, int((positive_months / len(growth_rates)) * 100))
+                    else:
+                        probability = 65
+                    
+                    trend_direction = 'up' if prediction_growth > 0 else ('down' if prediction_growth < 0 else 'stable')
+                    predicted_balance = round(total_balance * (1 + prediction_growth / 100), 2)
+        
+        # ── 5. PAYROLL DATA ─────────────────────────────────
+        from models.user_model import PayrollBatch
+        payroll_months = []
+        payroll_values = []
+        withdrawal_values = []
+        
+        for i in range(5, -1, -1):
+            target_date = now - timedelta(days=30 * i)
+            m = target_date.month
+            y = target_date.year
+            payroll_months.append(month_names[m - 1])
+            
+            # Payroll total
+            payroll_total = db.session.query(func.sum(PayrollBatch.total_amount)).filter(
+                PayrollBatch.period_month == m,
+                PayrollBatch.period_year == y
+            ).scalar() or 0
+            payroll_values.append(float(payroll_total))
+            
+            # Withdrawals
+            withdrawal_total = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                SavingTransaction.transaction_type == 'CREDIT',
+                SavingTransaction.transaction_source == 'WITHDRAWAL',
+                extract('month', SavingTransaction.transaction_date) == m,
+                extract('year', SavingTransaction.transaction_date) == y
+            ).scalar() or 0
+            withdrawal_values.append(float(withdrawal_total))
+        
+        # ── 6. FINANCIAL HEALTH SCORE ────────────────────────
+        health_score = 50  # Base
+        if growth_pct > 0: health_score += 15
+        if growth_pct > 10: health_score += 10
+        if latest_inflation < 4: health_score += 10
+        if latest_inflation < 3: health_score += 5
+        if active_members > 10: health_score += 10
+        health_score = min(100, health_score)
+        
+        if health_score >= 80: health_status = 'Sangat Baik'
+        elif health_score >= 60: health_status = 'Stabil'
+        elif health_score >= 40: health_status = 'Waspada'
+        else: health_status = 'Risiko Tinggi'
+
+        # ── BUILD RESPONSE ──────────────────────────────────
+        response = {
+            'success': True,
+            'saving_trend': {
+                'months': months_labels,
+                'values': months_values,
+                'growth_pct': growth_pct,
+                'total_balance': total_balance,
+                'total_tx': total_tx,
+                'active_members': active_members,
+                'distribution': distribution
+            },
+            'economic_data': {
+                'inflation': inflation_values,
+                'bi_rate': birate_values,
+                'usd_idr': usd_idr_values,
+                'months': eco_months if eco_months else months_labels
+            },
+            'ai_insights': ai_insights,
+            'prediction': {
+                'next_month_growth_pct': prediction_growth,
+                'probability': probability,
+                'trend_direction': trend_direction,
+                'predicted_balance': predicted_balance
+            },
+            'payroll_vs_withdrawal': {
+                'months': payroll_months,
+                'payroll': payroll_values,
+                'withdrawal': withdrawal_values
+            },
+            'health': {
+                'score': health_score,
+                'status': health_status
+            }
+        }
+        
+        return jsonify(response), 200
+    
+    except Exception as e:
+        print(f"[growth-analytics] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -1108,6 +1108,8 @@ def login_google():
     mode = request.args.get('mode', 'login')
     session['google_auth_mode'] = mode
     redirect_uri = url_for('auth.authorize_google', _external=True)
+    if redirect_uri.startswith('http://') and 'ngrok-free.dev' in redirect_uri:
+        redirect_uri = redirect_uri.replace('http://', 'https://', 1)
     return oauth.google.authorize_redirect(redirect_uri)
 
 @auth_bp.route('/login/google/authorize')
@@ -1536,4 +1538,4 @@ def admin_member_financial_details(member_id):
             'total_withdrawal': total_withdrawal,
         }
     })
-
+

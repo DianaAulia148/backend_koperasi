@@ -10,7 +10,7 @@ Semua endpoint API di bawah prefix `/api` memiliki performa tinggi, fitur valida
 
 ### 🔗 Informasi Server (Base URL)
 * **Development (Local Host):** `http://127.0.0.1:5000`
-* **Staging / Local Network IP:** `http://192.168.110.95:5000`
+* **Staging / Local Network IP:** `http://192.168.56.46:5000`
 * **Production URL:** `https://api.coop-koperasi.co.id` (Contoh Produksi)
 
 ### 🔒 Protokol Keamanan (Otentikasi)
@@ -404,7 +404,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  final String baseUrl = "http://192.168.110.95:5000/api";
+  final String baseUrl = "http://192.168.56.46:5000/api";
   final storage = const FlutterSecureStorage();
 
   Future<bool> login(String email, String password) async {

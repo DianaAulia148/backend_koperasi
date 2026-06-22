@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, redirect, url_for
+from flask_cors import CORS
 from config import Config
 from models.user_model import db
 from routes.auth_routes import auth_bp, oauth, mail
@@ -18,6 +19,9 @@ from flask_mail import Mail
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Aktifkan CORS agar Flutter (HP) bisa mengakses API dari laptop
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Register Blueprint & DB
 db.init_app(app)
@@ -55,5 +59,5 @@ if __name__ == "__main__":
     with app.app_context():
         print(">>> Sinkronisasi Tabel Database...")
         db.create_all()
-    print(f">>> Aplikasi SIAP di http://192.168.110.95:5000")
+    print(f">>> Aplikasi SIAP di http://192.168.56.46:5000")
     app.run(host='0.0.0.0', port=5000, debug=True)

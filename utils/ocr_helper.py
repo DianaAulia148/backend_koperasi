@@ -1,54 +1,95 @@
-import easyocr
 import cv2
 import numpy as np
 import re
 import os
-from datetime import date
 import logging
+from ultralytics import YOLO
 
 # Set up logging for OCR
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Cache reader instance globally so it doesn't load model on every request
-_reader = None
+# Global instances
+_paddle_ocr = None
+_yolo_model = None
 
-def get_ocr_reader():
-    global _reader
-    if _reader is None:
-        logger.info("Memuat model EasyOCR (hanya sekali saat pertama dipanggil)...")
-        _reader = easyocr.Reader(['en', 'id'])
-    return _reader
+def get_paddle_ocr():
+    global _paddle_ocr
+    if _paddle_ocr is None:
+        logger.info("Memuat model PaddleOCR...")
+        # Matikan OneDNN/MKLDNN untuk mencegah C++ backend error di Windows
+        os.environ['FLAGS_use_mkldnn'] = '0'
+        # Import lazy to avoid slowing down startup if not used
+        from paddleocr import PaddleOCR
+        _paddle_ocr = PaddleOCR(use_angle_cls=True, lang='id', enable_mkldnn=False)
+    return _paddle_ocr
+
+def get_yolo_model():
+    global _yolo_model
+    if _yolo_model is None:
+        yolo_path = os.path.join('runs', 'detect', 'ktp_model', 'weights', 'best.pt')
+        if os.path.exists(yolo_path):
+            logger.info("Memuat model YOLOv8 untuk deteksi KTP...")
+            _yolo_model = YOLO(yolo_path)
+        else:
+            logger.info("Model YOLOv8 belum dilatih/tidak ditemukan. Menggunakan fallback ke seluruh gambar.")
+            _yolo_model = "NOT_TRAINED"
+    return _yolo_model
 
 def preprocess_ktp(img_path):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError("Gambar tidak dapat dibaca oleh OpenCV.")
         
-    img_resized = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
-    denoised = cv2.fastNlMeansDenoising(gray, h=10)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(denoised)
-    _, thresh = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    yolo = get_yolo_model()
+    if yolo != "NOT_TRAINED":
+        # Gunakan YOLO untuk mendeteksi dan crop KTP
+        results = yolo(img)
+        # Jika ada deteksi
+        if len(results) > 0 and len(results[0].boxes) > 0:
+            box = results[0].boxes[0] # Ambil deteksi pertama dengan confidence tertinggi
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            img = img[y1:y2, x1:x2]
+            logger.info("KTP berhasil di-crop menggunakan YOLOv8.")
+
+    # Image enhancement
+    img_resized = cv2.resize(img, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
     
-    # Simpan hasil preprocessing ke lokasi sementara jika diperlukan easyocr (bisa juga dilewatkan sebagai numpy array ke easyocr)
+    # PaddleOCR bekerja dengan baik pada gambar RGB yang sudah jelas,
+    # tetapi bisa juga dibantu dengan sedikit penajaman
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5,-1],
+                       [0, -1, 0]])
+    sharpened = cv2.filter2D(img_resized, -1, kernel)
+
     temp_path = img_path + "_preprocessed.jpg"
-    cv2.imwrite(temp_path, thresh)
+    cv2.imwrite(temp_path, sharpened)
     return temp_path
 
-def parse_ktp(results):
-    # Simpan teks beserta confidence score
-    text_conf = [(text, prob) for (_, text, prob) in results]
+def parse_ktp(results_paddle):
+    # PaddleOCR output format:
+    # [[[[x,y],[x,y],[x,y],[x,y]], ("text", confidence)], ...]
+    
+    # Ambil teks dan probabilitasnya
+    text_conf = []
+    if results_paddle and len(results_paddle) > 0 and results_paddle[0] is not None:
+        for line in results_paddle[0]:
+            try:
+                # Format standar: line = [box, ('text', confidence)]
+                if len(line) >= 2:
+                    val = line[1]
+                    if isinstance(val, (tuple, list)) and len(val) >= 2:
+                        text_conf.append((str(val[0]), float(val[1])))
+                    elif isinstance(val, str):
+                        text_conf.append((val, 1.0))
+            except Exception as e:
+                logger.error(f"Error parsing line {line}: {e}")
+                continue
+                
     raw_text  = ' '.join([t for t, _ in text_conf])
     raw_upper = raw_text.upper()
 
     ktp_data  = {}
-    conf_data = {}
-
-    def get_conf_for(keyword):
-        scores = [prob for text, prob in text_conf if keyword.lower() in text.lower()]
-        return round(sum(scores) / len(scores) * 100, 1) if scores else 0.0
 
     # NIK
     nik = re.search(r'\b(\d{16})\b', raw_text)
@@ -56,15 +97,15 @@ def parse_ktp(results):
 
     # NAMA
     nama = None
-    m1 = re.search(r'(?:^|\s)Nama\s*[:\-]?\s*([A-Z][A-Z\s]{2,})', raw_text, re.IGNORECASE)
+    m1 = re.search(r'(?:^|\s)Nama\s*[:\-]?\s*([A-Z][A-Za-z\s]{2,})', raw_text, re.IGNORECASE)
     if m1:
         nama = m1.group(1).strip()
     if not nama:
         for i, (text, prob) in enumerate(text_conf):
-            if re.match(r'^Nama$', text.strip(), re.IGNORECASE):
+            if re.match(r'^Nama$', text.strip(), re.IGNORECASE) or 'NAMA' in text.upper():
                 for j in range(i+1, min(i+4, len(text_conf))):
                     candidate = text_conf[j][0].strip()
-                    if re.match(r'^[A-Z][A-Z\s]{2,}$', candidate):
+                    if re.match(r'^[A-Z][A-Za-z\s]{2,}$', candidate) and 'TEMPAT' not in candidate.upper() and 'LAHIR' not in candidate.upper():
                         nama = candidate
                         break
                 break
@@ -72,7 +113,7 @@ def parse_ktp(results):
 
     # Tempat Lahir
     tempat = re.search(
-        r'(?:Tempat|Temp[a-z]+)\s*[/\s]*(?:Tgl\.?|Tanggal)?\s*(?:Lahir)?\s*[:\-]?\s*([A-Z][A-Z\s,]+?)(?:\d{2}-|\s{2,}|$)',
+        r'(?:Tempat|Temp[a-z]+)\s*[/\s]*(?:Tgl\.?|Tanggal)?\s*(?:Lahir)?\s*[:\-]?\s*([A-Za-z][A-Za-z\s,]+?)(?:\d{2}-|\s{2,}|$)',
         raw_text, re.IGNORECASE)
     ktp_data['tempat_lahir'] = tempat.group(1).strip().rstrip(',') if tempat else None
 
@@ -80,32 +121,33 @@ def parse_ktp(results):
     tgl = re.search(r'(\d{2}-\d{2}-\d{4})', raw_text)
     ktp_data['ttl'] = tgl.group(1) if tgl else None
 
+    # Jika ttl gabungan diminta
+    if ktp_data.get('tempat_lahir') and ktp_data.get('ttl'):
+        ktp_data['ttl_full'] = f"{ktp_data['tempat_lahir']}, {ktp_data['ttl']}"
+    elif ktp_data.get('ttl'):
+        ktp_data['ttl_full'] = ktp_data['ttl']
+
     # Jenis Kelamin
-    if 'PEREMPUAN' in raw_upper:
-        ktp_data['jenis_kelamin'] = 'PEREMPUAN'
-    elif 'LAKI' in raw_upper:
-        ktp_data['jenis_kelamin'] = 'LAKI-LAKI'
+    if re.search(r'(?i)(PEREMPUAN|PERENPUAN)', raw_upper):
+        ktp_data['jenis_kelamin'] = 'Perempuan'
+    elif re.search(r'(?i)(LAKI|LAK1)', raw_upper):
+        ktp_data['jenis_kelamin'] = 'Laki-laki'
     else:
         ktp_data['jenis_kelamin'] = None
 
-    # Gol Darah
-    gol = re.search(r'(?:Gol\.?\s*Darah|Darah)\s*[:\-]?\s*([ABO]{1,2}[+-]?)', raw_text, re.IGNORECASE)
-    ktp_data['gol_darah'] = gol.group(1).strip() if gol else None
-
     # Alamat
-    alamat = re.search(r'Alamat\s*[:\-]?\s*([A-Z0-9][^\n]+?)(?:RT|RW|Kel|$)', raw_text, re.IGNORECASE)
+    alamat = re.search(r'Alamat\s*[:\-]?\s*([A-Za-z0-9][^\n]+?)(?:RT|RW|Kel|$)', raw_text, re.IGNORECASE)
     alamat_str = alamat.group(1).strip() if alamat else None
     
     rtrw = re.search(r'(\d{3})[/\\](\d{3})', raw_text)
     rtrw_str = f"RT/RW {rtrw.group(1)}/{rtrw.group(2)}" if rtrw else ""
     
-    keldesa = re.search(r'(?:Kel|Desa)\s*[/\\]?\s*(?:Desa|Kel)?\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?:\s{2,}|Kec|$)', raw_text, re.IGNORECASE)
+    keldesa = re.search(r'(?:Kel|Desa)\s*[/\\]?\s*(?:Desa|Kel)?\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?:\s{2,}|Kec|$)', raw_text, re.IGNORECASE)
     kel_str = f"Kel. {keldesa.group(1).strip()}" if keldesa else ""
     
-    kec = re.search(r'Kecamatan\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?:\s{2,}|Agama|$)', raw_text, re.IGNORECASE)
+    kec = re.search(r'Kecamatan\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?:\s{2,}|Agama|$)', raw_text, re.IGNORECASE)
     kec_str = f"Kec. {kec.group(1).strip()}" if kec else ""
     
-    # Gabung alamat (optional sesuai format yang diminta)
     parts = [p for p in [alamat_str, rtrw_str, kel_str, kec_str] if p]
     ktp_data['alamat'] = ", ".join(parts) if parts else None
 
@@ -125,28 +167,21 @@ def parse_ktp(results):
         ktp_data['status_perkawinan'] = None
 
     # Pekerjaan
-    pekerjaan = re.search(r'Pekerjaan\s*[:\-]?\s*([A-Z][A-Z\s]+?)(?:\s{2,}|Kewarganegaraan|$)', raw_text, re.IGNORECASE)
+    pekerjaan = re.search(r'Pekerjaan\s*[:\-]?\s*([A-Za-z][A-Za-z\s]+?)(?:\s{2,}|Kewarganegaraan|$)', raw_text, re.IGNORECASE)
     ktp_data['pekerjaan'] = pekerjaan.group(1).strip() if pekerjaan else None
 
-    # Kewarganegaraan
-    if 'WNI' in raw_upper:
-        ktp_data['kewarganegaraan'] = 'WNI'
-    elif 'WNA' in raw_upper:
-        ktp_data['kewarganegaraan'] = 'WNA'
-    else:
-        ktp_data['kewarganegaraan'] = None
-
+    ktp_data['ttl'] = ktp_data.get('ttl_full', ktp_data.get('ttl'))
     return ktp_data
 
 def process_ktp_image(file_path):
     temp_path = None
     try:
-        # Preprocess
+        # Preprocess dengan YOLO crop (jika sudah di-train) + Penajaman
         temp_path = preprocess_ktp(file_path)
         
-        # Load reader & extract text
-        reader = get_ocr_reader()
-        results = reader.readtext(temp_path)
+        # Ekstrak Teks Menggunakan PaddleOCR
+        ocr = get_paddle_ocr()
+        results = ocr.ocr(temp_path)
         
         # Parse data
         ktp_data = parse_ktp(results)
@@ -155,6 +190,17 @@ def process_ktp_image(file_path):
         logger.error(f"Gagal memproses KTP: {str(e)}")
         raise e
     finally:
-        # Bersihkan file preprocessed jika ada
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+
+def parse_ktp_to_flask_format(results_paddle):
+    # Fungsi wrapper agar kompatibel dengan existing api_routes.py
+    ktp_data = parse_ktp(results_paddle)
+    return {
+        'nik': ktp_data.get('nik', ''),
+        'nama': ktp_data.get('nama', ''),
+        'ttl': ktp_data.get('ttl_full', ''),
+        'jenis_kelamin': ktp_data.get('jenis_kelamin', ''),
+        'agama': ktp_data.get('agama', ''),
+        'alamat': ktp_data.get('alamat', '')
+    }
