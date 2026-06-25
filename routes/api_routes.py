@@ -344,6 +344,20 @@ def preprocess_ktp(img_path):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError("Gambar tidak terbaca.")
+        
+    # --- STEP 0: Crop KTP menggunakan YOLO (best.pt) ---
+    from utils.ocr_helper import get_yolo_model
+    try:
+        yolo = get_yolo_model()
+        if yolo != "NOT_TRAINED":
+            results = yolo(img)
+            if len(results) > 0 and len(results[0].boxes) > 0:
+                box = results[0].boxes[0]
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                img = img[y1:y2, x1:x2]
+                print(">>> [YOLO] Berhasil crop area KTP!")
+    except Exception as e:
+        print(f"!!! Gagal menggunakan YOLO untuk crop: {e}")
     
     # --- STEP 1: Adaptive Resize ---
     h, w = img.shape[:2]

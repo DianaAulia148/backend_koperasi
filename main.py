@@ -21,7 +21,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Aktifkan CORS agar Flutter (HP) bisa mengakses API dari laptop
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Register Blueprint & DB
 db.init_app(app)
