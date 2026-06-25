@@ -8,9 +8,19 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
-    BASE_API_URL = "http://192.168.56.46:5000"
+    BASE_API_URL = "http://192.168.18.143:5000"
 
-    SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
+    # Database configuration: use MySQL if all required env vars are set, otherwise fallback to SQLite for local development
+    DB_USER = os.getenv('DB_USER')
+    DB_PASSWORD = os.getenv('DB_PASSWORD')
+    DB_HOST = os.getenv('DB_HOST')
+    DB_NAME = os.getenv('DB_NAME')
+    if DB_USER and DB_PASSWORD and DB_HOST and DB_NAME:
+        SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+    else:
+        # SQLite database file located in the project root
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
+
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     

@@ -56,8 +56,11 @@ def init_db():
 if __name__ == "__main__":
     print(">>> Menghubungkan ke Database...")
     init_db()
-    with app.app_context():
-        print(">>> Sinkronisasi Tabel Database...")
-        db.create_all()
-    print(f">>> Aplikasi SIAP di http://192.168.56.46:5000")
+    print(">>> Sinkronisasi Tabel Database...")
+    try:
+        with app.app_context():
+            db.create_all()
+    except Exception as e:
+        print(f"Warning during table creation: {e}")
+    print(">>> Aplikasi SIAP dijalankan!")
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -271,6 +271,9 @@ class PayrollBatch(SoftDeleteMixin, db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     processed_at = db.Column(db.DateTime, nullable=True)
     # deleted_at from SoftDeleteMixin
+    
+    uploader = db.relationship('User', foreign_keys=[uploaded_by], backref='payroll_batches')
+    details = db.relationship('PayrollBatchDetail', backref='batch', lazy='dynamic')
 
 class PayrollBatchDetail(db.Model):
     __tablename__ = "payroll_batch_details"

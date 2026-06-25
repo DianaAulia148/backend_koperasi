@@ -911,6 +911,10 @@ def get_member_status(user_id):
             return jsonify({
                 "status": "approved", # Sesuai permintaan (approved/aktif)
                 "full_name": member.full_name or full_name,
+                "member_id": member.member_no,
+                "avatar_path": member.pas_foto,
+                "address": member.address,
+                "phone": member.phone,
                 "registration_details": {
                     "rejection_reason": ""
                 }
@@ -944,6 +948,8 @@ def get_member_status(user_id):
         return jsonify({
             "status": final_status,
             "full_name": reg.ocr_name or full_name,
+            "address": reg.ocr_address,
+            "phone": reg.phone,
             "registration_details": {
                 "rejection_reason": reg.rejection_reason or ""
             }
@@ -989,8 +995,8 @@ def get_member_financial_details(current_user):
     # Analytics Calculations
     all_transactions = SavingTransaction.query.filter_by(member_id=member.id, transaction_status='SUCCESS').all()
     
-    total_payroll = sum([float(t.amount) for t in all_transactions if t.transaction_source == 'PAYROLL' and t.transaction_type == 'DEPOSIT'])
-    total_withdrawal = sum([float(t.amount) for t in all_transactions if t.transaction_type in ['WITHDRAWAL', 'CREDIT'] or (t.transaction_type == 'DEBIT' and t.transaction_source != 'PAYROLL')])
+    total_payroll = sum([float(t.amount) for t in all_transactions if t.transaction_source == 'PAYROLL' and t.transaction_type in ['DEPOSIT', 'DEBIT']])
+    total_withdrawal = sum([float(t.amount) for t in all_transactions if t.transaction_type in ['WITHDRAWAL', 'CREDIT']])
     shu_estimation = total_balance * 0.05 # Proyeksi kas kasar 5%
 
     # Payroll History (Last 5)
@@ -1003,34 +1009,48 @@ def get_member_financial_details(current_user):
             'status': ptx.transaction_status
         })
         
-    # Dummy Monthly Growth for Chart (6 months)
+    # Actual Monthly Growth for Chart (6 months)
     import datetime
     from dateutil.relativedelta import relativedelta
+    import calendar
+    
     monthly_growth = {'labels': [], 'data': []}
-    current_val = total_balance
     today = datetime.datetime.now()
     
     for i in range(5, -1, -1):
-        month_date = today - relativedelta(months=i)
-        monthly_growth['labels'].append(month_date.strftime('%b %Y'))
+        target_date = today - relativedelta(months=i)
+        target_month = target_date.month
+        target_year = target_date.year
         
-        if i == 0:
-            monthly_growth['data'].append(current_val)
-        else:
-            # Mundur: kurangi nilai secara random (simulate growth)
-            import random
-            reduction = current_val * (random.uniform(0.02, 0.10))
-            current_val = max(0, current_val - reduction)
-            monthly_growth['data'].append(current_val)
-
-    # Sort dummy data so it makes sense (oldest to newest)
-    # The loop above generated data from [now-5, now-4, ..., now]. It's already chronological.
+        last_day = calendar.monthrange(target_year, target_month)[1]
+        end_date = datetime.datetime(target_year, target_month, last_day, 23, 59, 59)
+        
+        monthly_growth['labels'].append(target_date.strftime('%b %Y'))
+        
+        # Calculate balance up to end of this month for this member
+        debit = db.session.query(db.func.sum(SavingTransaction.amount)).filter(
+            SavingTransaction.member_id == member.id,
+            SavingTransaction.transaction_type == 'DEBIT',
+            SavingTransaction.transaction_status == 'SUCCESS',
+            SavingTransaction.transaction_date <= end_date
+        ).scalar() or 0
+        
+        credit = db.session.query(db.func.sum(SavingTransaction.amount)).filter(
+            SavingTransaction.member_id == member.id,
+            SavingTransaction.transaction_type == 'CREDIT',
+            SavingTransaction.transaction_status == 'SUCCESS',
+            SavingTransaction.transaction_date <= end_date
+        ).scalar() or 0
+        
+        monthly_growth['data'].append(float(debit - credit))
     
     return jsonify({
         'member': {
             'id': member.id,
             'member_no': member.member_no,
             'name': member.full_name,
+            'nik': member.nik or '-',
+            'nip': member.nip or '-',
             'phone': member.phone,
             'email': member.email,
             'address': member.address,
@@ -1052,6 +1072,47 @@ def get_member_financial_details(current_user):
         }
     })
 
+@api_bp.route('/member/deposit', methods=['POST'])
+@token_required
+def request_deposit(current_user):
+    try:
+        user_id = current_user.id
+        
+        # Support both form data and json
+        data = request.json if request.is_json else request.form
+        
+        amount = data.get('amount')
+        saving_type_id = data.get('saving_type_id')
+        source_bank = data.get('source_bank')
+        source_account_no = data.get('source_account_no')
+
+        if not all([amount, saving_type_id, source_bank, source_account_no]):
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+
+        member = Member.query.filter_by(mobile_user_id=user_id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+            
+        new_request = DepositRequest(
+            member_id=member.id,
+            saving_type_id=saving_type_id,
+            amount=amount,
+            source_bank=source_bank,
+            source_account_no=source_account_no,
+            approval_status='PENDING'
+        )
+
+        db.session.add(new_request)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Deposit request submitted successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/member/withdraw', methods=['POST'])
 @token_required
 def request_withdrawal(current_user):
@@ -1071,16 +1132,37 @@ def request_withdrawal(current_user):
         if not member:
             return jsonify({'success': False, 'error': 'Member not found'}), 404
 
-        # Check balance (optional but recommended)
-        # For now, just save the request as pending
-        
+        # Check balance validation
+        st_id = 2 # Default to Simpanan Sukarela (SS)
+        if saving_type_id:
+            try:
+                st_id = int(saving_type_id)
+            except ValueError:
+                pass
+
+        balance_record = MemberSavingBalance.query.filter_by(member_id=member.id, saving_type_id=st_id).first()
+        current_balance = float(balance_record.balance) if balance_record else 0.0
+
+        try:
+            req_amount = float(amount)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Format nominal penarikan tidak valid'}), 400
+
+        if req_amount > current_balance:
+            import locale
+            try:
+                formatted_bal = f"{int(current_balance):,}".replace(",", ".")
+            except:
+                formatted_bal = str(int(current_balance))
+            return jsonify({'success': False, 'error': f'Saldo tidak mencukupi. Saldo tersedia: Rp {formatted_bal}'}), 400
+
         new_request = WithdrawalRequest(
             member_id=member.id,
             amount=amount,
             bank_name=bank_name,
             account_number=account_number,
             account_holder=account_holder,
-            processing_notes=f"Saving Type ID: {saving_type_id}. Reason: {reason}",
+            processing_notes=f"Saving Type ID: {st_id}. Reason: {reason}",
             approval_status='PENDING'
         )
 

@@ -1064,18 +1064,54 @@ def balances():
             'last_active': last_active.strftime('%d %b %Y') if last_active else '-'
         })
 
-    # 4. Monthly Growth (Last 6 Months) - Simple Aggregate per month
+    # 4. Monthly Growth (Last 6 Months) - Actual Cumulative Aggregate
     growth_data = {
         'labels': [],
         'wajib': [],
         'sukarela': []
     }
+    
+    from sqlalchemy import extract
+    
+    today = datetime.now()
+    
     for i in range(5, -1, -1):
-        month_date = datetime.now() - timedelta(days=i*30)
-        growth_data['labels'].append(month_date.strftime('%b'))
-        # For demo accuracy, we could sum transactions, but for now we'll scale current totals
-        growth_data['wajib'].append(total_wajib * (0.7 + (0.05 * (6-i))))
-        growth_data['sukarela'].append(total_sukarela * (0.6 + (0.07 * (6-i))))
+        # Calculate target month and year
+        target_month = (today.month - i - 1) % 12 + 1
+        target_year = today.year + ((today.month - i - 1) // 12)
+        
+        # We need the last day of the target month to calculate balance up to that point
+        # For simplicity in SQLite/MySQL, we sum all transactions where date <= end of target month
+        import calendar
+        last_day = calendar.monthrange(target_year, target_month)[1]
+        end_date = datetime(target_year, target_month, last_day, 23, 59, 59)
+        
+        growth_data['labels'].append(datetime(target_year, target_month, 1).strftime('%b'))
+        
+        # Helper to get balance at end of month
+        def get_historical_balance(st_id):
+            if not st_id: return 0
+            
+            # Sum DEBIT (Simpanan masuk)
+            debit = db.session.query(db.func.sum(SavingTransaction.amount)).filter(
+                SavingTransaction.saving_type_id == st_id,
+                SavingTransaction.transaction_type == 'DEBIT',
+                SavingTransaction.transaction_status == 'SUCCESS',
+                SavingTransaction.transaction_date <= end_date
+            ).scalar() or 0
+            
+            # Sum CREDIT (Penarikan keluar)
+            credit = db.session.query(db.func.sum(SavingTransaction.amount)).filter(
+                SavingTransaction.saving_type_id == st_id,
+                SavingTransaction.transaction_type == 'CREDIT',
+                SavingTransaction.transaction_status == 'SUCCESS',
+                SavingTransaction.transaction_date <= end_date
+            ).scalar() or 0
+            
+            return float(debit - credit)
+            
+        growth_data['wajib'].append(get_historical_balance(st_wajib.id if st_wajib else None))
+        growth_data['sukarela'].append(get_historical_balance(st_sukarela.id if st_sukarela else None))
 
     return render_template('balances.html', 
                          current_user=current_user,
@@ -1512,14 +1548,16 @@ def admin_member_financial_details(member_id):
     all_success = SavingTransaction.query.filter_by(
         member_id=member.id, transaction_status='SUCCESS'
     ).all()
-    total_payroll = sum(float(t.amount) for t in all_success if getattr(t, 'transaction_source', '') == 'PAYROLL' and t.transaction_type == 'DEPOSIT')
-    total_withdrawal = sum(float(t.amount) for t in all_success if t.transaction_type in ['WITHDRAWAL', 'DEBIT'])
+    total_payroll = sum(float(t.amount) for t in all_success if getattr(t, 'transaction_source', '') == 'PAYROLL' and t.transaction_type in ['DEBIT', 'DEPOSIT'])
+    total_withdrawal = sum(float(t.amount) for t in all_success if t.transaction_type in ['WITHDRAWAL', 'CREDIT'])
 
     return jsonify({
         'member': {
             'id': member.id,
             'member_no': member.member_no,
             'name': member.full_name,
+            'nik': member.nik or '-',
+            'nip': member.nip or '-',
             'jabatan': member.jabatan or '-',
             'gender': member.gender or '-',
             'birth_date': member.birth_date.strftime('%d %b %Y') if member.birth_date else '-',
