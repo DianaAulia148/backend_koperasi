@@ -52,6 +52,7 @@ def init_db():
             host=os.getenv('DB_HOST', 'localhost'), 
             user=os.getenv('DB_USER', 'root'), 
             password=os.getenv('DB_PASSWORD', ''),
+            port=int(os.getenv('DB_PORT', 3306)),
             connect_timeout=5  # Maksimal menunggu 5 detik
         )
         conn.cursor().execute(f"CREATE DATABASE IF NOT EXISTS {os.getenv('DB_NAME')}")
