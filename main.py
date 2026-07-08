@@ -1,10 +1,13 @@
 import os
+print(">>> Mulai inisialisasi...")
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import pymysql
+print(">>> pymysql diimpor...")
 from dotenv import load_dotenv
 
 load_dotenv()
 
+print(">>> Mulai mengimpor Flask dan library lainnya (ini mungkin memakan waktu)...")
 from flask import Flask, redirect, url_for
 from flask_cors import CORS
 from config import Config

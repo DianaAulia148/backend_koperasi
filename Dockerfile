@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1
 # Hugging Face requires port 7860
 EXPOSE 7860
 
-CMD ["python", "main.py"]
+CMD ["python", "-u", "main.py"]
