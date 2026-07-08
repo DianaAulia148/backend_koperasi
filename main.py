@@ -75,8 +75,9 @@ if __name__ == "__main__":
     if is_main_process:
         import threading
         from utils.ocr_helper import warm_up_models
-        warmup_thread = threading.Thread(target=warm_up_models, daemon=True)
-        warmup_thread.start()
+        # Matikan warmup otomatis agar memori server gratis HF tidak jebol saat startup
+        # warmup_thread = threading.Thread(target=warm_up_models, daemon=True)
+        # warmup_thread.start()
 
         # Inisialisasi scheduler otomatis pengambilan data ekonomi (UAS Big Data Kriteria)
         try:
