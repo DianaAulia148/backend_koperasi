@@ -7,7 +7,7 @@ load_dotenv()
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY")
+    SECRET_KEY = os.getenv("SECRET_KEY", "fallback-secret-key-koperasi-2026")
     BASE_API_URL = "http://192.168.18.143:5000"
 
     # Database configuration: use MySQL if all required env vars are set, otherwise fallback to SQLite for local development
