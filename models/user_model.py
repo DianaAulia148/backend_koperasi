@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 
 db = SQLAlchemy()
 
@@ -11,7 +11,7 @@ class SoftDeleteMixin:
     deleted_at = db.Column(db.DateTime, nullable=True)
 
     def soft_delete(self):
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = datetime.now(timezone.utc)
         db.session.add(self)
         db.session.commit()
         
@@ -40,7 +40,7 @@ class User(db.Model):
     role = db.Column(db.String(50)) # Admin / Teller
     jabatan = db.Column(db.String(50)) # Ketua, Wakil, Sekretaris, Bendahara, Pengawas, Pegawai
     status = db.Column(db.String(50), default="AKTIF") # AKTIF / TIDAK AKTIF
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class MobileUser(db.Model):
     __tablename__ = "mobile_users"
@@ -52,7 +52,7 @@ class MobileUser(db.Model):
     google_id = db.Column(db.String(100))
     status = db.Column(db.String(50), default="AKTIF")
     is_verified = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class MemberRegistration(SoftDeleteMixin, db.Model):
     __tablename__ = "member_registration"
@@ -85,6 +85,18 @@ class MemberRegistration(SoftDeleteMixin, db.Model):
     ocr_engine = db.Column(db.String(50))
     ocr_processed_at = db.Column(db.DateTime, nullable=True)
     ocr_retry_count = db.Column(db.Integer, default=0)
+    ocr_religion = db.Column(db.String(50))
+    
+    # Financial / Simpanan Data
+    savings_type = db.Column(db.String(50))
+    savings_amount = db.Column(db.Numeric(15, 2))
+    bank_name = db.Column(db.String(100))
+    bank_account_number = db.Column(db.String(50))
+    
+    # Status (Additional DB columns)
+    registration_status = db.Column(db.String(20))
+    duplicate_status = db.Column(db.String(20))
+    risk_level = db.Column(db.String(20))
     
     # Fraud Detection
     fraud_score = db.Column(db.Float, default=0.0)
@@ -98,8 +110,8 @@ class MemberRegistration(SoftDeleteMixin, db.Model):
     approval_status = db.Column(db.String(20), default="PENDING") # PENDING, APPROVED, REJECTED
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     approved_at = db.Column(db.DateTime, nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     # deleted_at from SoftDeleteMixin
     
     mobile_user = db.relationship('MobileUser', backref=db.backref('registrations', lazy=True))
@@ -109,7 +121,7 @@ class MemberRegistration(SoftDeleteMixin, db.Model):
 class OcrLog(db.Model):
     __tablename__ = "ocr_logs"
     id = db.Column(db.Integer, primary_key=True)
-    registration_id = db.Column(db.Integer, db.ForeignKey('member_registration.id'), nullable=False)
+    ocr_result_id = db.Column(db.Integer, nullable=False) # Changed from registration_id
     field_name = db.Column(db.String(100))
     value_before = db.Column(db.Text)
     value_after = db.Column(db.Text)
@@ -117,16 +129,17 @@ class OcrLog(db.Model):
     confidence_after = db.Column(db.Float)
     reviewer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     retry_count = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class RegistrationTimeline(db.Model):
     __tablename__ = "registration_timeline"
     id = db.Column(db.Integer, primary_key=True)
-    registration_id = db.Column(db.Integer, db.ForeignKey('member_registration.id'), nullable=False)
+    member_registration_id = db.Column(db.Integer, db.ForeignKey('member_registration.id'), nullable=False)
     status = db.Column(db.String(50)) # e.g. UPLOADED, OCR_PROCESSED, DUPLICATE_CHECKED, MANUAL_REVIEW, APPROVED, REJECTED
     notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True) # ID Pengurus yang melakukan aksi
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class Member(SoftDeleteMixin, db.Model):
     __tablename__ = "members"
@@ -151,9 +164,10 @@ class Member(SoftDeleteMixin, db.Model):
     # Disbursement Details (For Withdrawals)
     bank_name = db.Column(db.String(100))
     bank_account_no = db.Column(db.String(100))
+    bank_account_number = db.Column(db.String(100))
     bank_account_name = db.Column(db.String(100))
 
-    date_joined = db.Column(db.DateTime, default=datetime.utcnow)
+    date_joined = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     mobile_user_id = db.Column(db.Integer, db.ForeignKey('mobile_users.id')) 
     # deleted_at from SoftDeleteMixin
 
@@ -166,7 +180,7 @@ class Transaction(db.Model):
     tx_type = db.Column(db.String(20))
     amount = db.Column(db.Float)
     status = db.Column(db.String(50), default="Selesai")
-    date = db.Column(db.DateTime, default=datetime.utcnow)
+    date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 # -------------------------------------------------------------------
 # ENTERPRISE LEDGER & PAYROLL SYSTEM (V4)
@@ -181,7 +195,7 @@ class MemberDocument(db.Model):
     file_name = db.Column(db.String(255))
     file_size = db.Column(db.Integer)
     is_verified = db.Column(db.Boolean, default=False)
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     verified_at = db.Column(db.DateTime, nullable=True)
 
 class SavingType(db.Model):
@@ -193,24 +207,30 @@ class SavingType(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
 class MemberSavingBalance(db.Model):
+    def __init__(self, **kwargs): super().__init__(**kwargs)
     __tablename__ = "member_saving_balances"
     id = db.Column(db.Integer, primary_key=True)
     member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
     saving_type_id = db.Column(db.Integer, db.ForeignKey('saving_types.id'), nullable=False)
     balance = db.Column(db.Numeric(15, 2), default=0.00)
+    status = db.Column(db.String(50), default="ACTIVE")
     
     # Optimistic Locking setup for financial transaction safety
     version_number = db.Column(db.Integer, nullable=False, default=1)
     
     last_transaction_at = db.Column(db.DateTime, nullable=True)
     last_updated_by = db.Column(db.String(50), nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+
+    member = db.relationship('Member', backref=db.backref('saving_balances', lazy=True))
+    saving_type = db.relationship('SavingType', backref='saving_balances')
 
     __mapper_args__ = {
         'version_id_col': version_number
     }
 
 class SavingTransaction(SoftDeleteMixin, db.Model):
+    def __init__(self, **kwargs): super().__init__(**kwargs)
     __tablename__ = "saving_transactions"
     id = db.Column(db.Integer, primary_key=True)
     member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
@@ -223,20 +243,20 @@ class SavingTransaction(SoftDeleteMixin, db.Model):
     balance_after = db.Column(db.Numeric(15, 2), nullable=False)
     transaction_source = db.Column(db.String(50)) # PAYROLL, WITHDRAWAL, MANUAL, ADJUSTMENT, OCR_VALIDATION
     reference_number = db.Column(db.String(100), unique=True, nullable=False)
-    transaction_date = db.Column(db.DateTime, default=datetime.utcnow)
+    transaction_date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     description = db.Column(db.Text)
     
     transaction_status = db.Column(db.String(20), default="SUCCESS") # PENDING, SUCCESS, FAILED, REVERSED
     processed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    processed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     reversal_reference_id = db.Column(db.String(100), nullable=True)
     
     # New Fields for Detailed Ledger
     source_bank = db.Column(db.String(100), nullable=True)
     source_account = db.Column(db.String(100), nullable=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     # Relationships
     member = db.relationship('Member', backref=db.backref('saving_transactions', lazy=True))
@@ -244,6 +264,7 @@ class SavingTransaction(SoftDeleteMixin, db.Model):
     # deleted_at from SoftDeleteMixin
 
 class PayrollBatch(SoftDeleteMixin, db.Model):
+    def __init__(self, **kwargs): super().__init__(**kwargs)
     __tablename__ = "payroll_batches"
     id = db.Column(db.Integer, primary_key=True)
     batch_code = db.Column(db.String(50), unique=True, nullable=False)
@@ -268,7 +289,7 @@ class PayrollBatch(SoftDeleteMixin, db.Model):
     processing_notes = db.Column(db.Text)
     
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     processed_at = db.Column(db.DateTime, nullable=True)
     # deleted_at from SoftDeleteMixin
     
@@ -276,14 +297,15 @@ class PayrollBatch(SoftDeleteMixin, db.Model):
     details = db.relationship('PayrollBatchDetail', backref='batch', lazy='dynamic')
 
 class PayrollBatchDetail(db.Model):
+    def __init__(self, **kwargs): super().__init__(**kwargs)
     __tablename__ = "payroll_batch_details"
     id = db.Column(db.Integer, primary_key=True)
     payroll_batch_id = db.Column(db.Integer, db.ForeignKey('payroll_batches.id'), nullable=False)
     member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
-    saving_type_id = db.Column(db.Integer, db.ForeignKey('saving_types.id'), nullable=False)
+    saving_type_id = db.Column(db.Integer, db.ForeignKey('saving_types.id'), nullable=True)
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     distribution_status = db.Column(db.String(20), default="PENDING") # PENDING, SUCCESS, FAILED
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class OcrTransferResult(db.Model):
     __tablename__ = "ocr_transfer_results"
@@ -303,7 +325,7 @@ class OcrTransferResult(db.Model):
     reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     reviewed_at = db.Column(db.DateTime, nullable=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class WithdrawalRequest(SoftDeleteMixin, db.Model):
     __tablename__ = "withdrawal_requests"
@@ -313,7 +335,7 @@ class WithdrawalRequest(SoftDeleteMixin, db.Model):
     bank_name = db.Column(db.String(100))
     account_number = db.Column(db.String(50))
     account_holder = db.Column(db.String(100))
-    request_date = db.Column(db.Date, default=datetime.utcnow)
+    request_date = db.Column(db.Date, default=datetime.now(timezone.utc))
     approval_status = db.Column(db.String(20), default="PENDING") # PENDING, APPROVED, REJECTED
     rejection_reason = db.Column(db.Text)
     
@@ -350,8 +372,8 @@ class DepositRequest(SoftDeleteMixin, db.Model):
     approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     approved_at = db.Column(db.DateTime, nullable=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     # Relationships
     member = db.relationship('Member', backref=db.backref('deposit_requests', lazy=True))
@@ -359,6 +381,7 @@ class DepositRequest(SoftDeleteMixin, db.Model):
     # deleted_at from SoftDeleteMixin
 
 class Notification(db.Model):
+    def __init__(self, **kwargs): super().__init__(**kwargs)
     __tablename__ = "notifications"
     id = db.Column(db.Integer, primary_key=True)
     member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
@@ -373,7 +396,25 @@ class Notification(db.Model):
     read_at = db.Column(db.DateTime, nullable=True)
     failed_reason = db.Column(db.Text)
     retry_count = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+
+    @staticmethod
+    def create(member_id, title, message, notification_type, channel="PUSH"):
+        try:
+            new_notif = Notification(
+                member_id=member_id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                notification_channel=channel
+            )
+            db.session.add(new_notif)
+            # Flush instead of commit, to follow current transaction state
+            db.session.flush()
+            return new_notif
+        except Exception as e:
+            print(f"Error creating notification: {e}")
+            return None
 
 class ActivityLog(db.Model):
     __tablename__ = "activity_logs"
@@ -383,7 +424,7 @@ class ActivityLog(db.Model):
     table_name = db.Column(db.String(100))
     reference_id = db.Column(db.Integer)
     ip_address = db.Column(db.String(45))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
     @staticmethod
     def log(activity, user_id=None, table_name=None, reference_id=None):
@@ -408,7 +449,7 @@ class OTPVerification(db.Model):
     email = db.Column(db.String(100), nullable=False)
     otp_code = db.Column(db.String(6), nullable=False)
     purpose = db.Column(db.String(50)) # registration / forgot_password
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     expires_at = db.Column(db.DateTime)
 
 # -------------------------------------------------------------------
@@ -423,7 +464,7 @@ class EconomicIndicator(db.Model):
     bi_rate = db.Column(db.Float)
     usd_idr = db.Column(db.Float)
     source = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class RegionalSalaryData(db.Model):
     __tablename__ = "regional_salary_data"
@@ -432,11 +473,33 @@ class RegionalSalaryData(db.Model):
     city = db.Column(db.String(100))
     umr = db.Column(db.Numeric(15, 2))
     year = db.Column(db.Integer)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class EconomicAnalysisLog(db.Model):
     __tablename__ = "economic_analysis_logs"
     id = db.Column(db.Integer, primary_key=True)
     analysis_type = db.Column(db.String(100)) # e.g. TREND_SIMPANAN, KORELASI_EKONOMI
     result_summary = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+
+class ResignationRequest(db.Model):
+    __tablename__ = "resignation_requests"
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    nipy = db.Column(db.String(50))
+    jabatan = db.Column(db.String(100))
+    lokasi_kerja = db.Column(db.String(100))
+    effective_month = db.Column(db.String(50))
+    bank_name = db.Column(db.String(100))
+    bank_branch = db.Column(db.String(100))
+    bank_account_number = db.Column(db.String(50))
+    bank_account_name = db.Column(db.String(100))
+    status = db.Column(db.String(20), default="PENDING")
+    transfer_proof = db.Column(db.String(255), nullable=True)
+    approved_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    
+    # Relationships
+    member = db.relationship('Member', backref=db.backref('resignation_requests', lazy=True))
+

@@ -19,6 +19,7 @@
     letter-spacing: -0.025em;
     background: linear-gradient(to right, var(--primary-red), var(--accent-red));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   .welcome-text p {
@@ -191,6 +192,7 @@
         scales: {
           y: { 
             beginAtZero: true, 
+            type: 'linear',
             grid: { color: 'rgba(0, 0, 0, 0.05)' },
             ticks: { color: '#64748b' }
           },
@@ -202,29 +204,23 @@
       }
     });
 
-    // Transactions Chart
+    // Transactions Chart (Doughnut)
     const txCanvas = document.getElementById('txChart');
     const txCtx = txCanvas.getContext('2d');
     const txLabels = JSON.parse(txCanvas.getAttribute('data-labels'));
     const setorData = JSON.parse(txCanvas.getAttribute('data-setor'));
-    const tarikData = JSON.parse(txCanvas.getAttribute('data-tarik'));
 
     new Chart(txCtx, {
-      type: 'bar',
+      type: 'doughnut',
       data: {
         labels: txLabels,
         datasets: [
           {
-            label: 'Setor',
             data: setorData,
-            backgroundColor: '#6e0b0b',
-            borderRadius: 6
-          },
-          {
-            label: 'Tarik',
-            data: [150, 180, 200, 450, 250, 300], // Using some varied data for effect
-            backgroundColor: '#ef4444',
-            borderRadius: 6
+            backgroundColor: [
+              '#10b981', '#3b82f6', '#f59e0b', '#6e0b0b', '#8b5cf6', '#ec4899'
+            ],
+            borderWidth: 0
           }
         ]
       },
@@ -237,17 +233,7 @@
             labels: { color: '#64748b', boxWidth: 12, font: { size: 10 } }
           }
         },
-        scales: {
-          y: { 
-            beginAtZero: true, 
-            grid: { color: 'rgba(0, 0, 0, 0.05)' },
-            ticks: { color: '#64748b' }
-          },
-          x: { 
-            grid: { display: false },
-            ticks: { color: '#64748b' }
-          }
-        }
+        cutout: '70%'
       }
     });
   });
@@ -288,15 +274,15 @@
         <div class="metric-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
         </div>
-        <div class="metric-label" data-i18n="total_withdrawals">Total Penarikan</div>
-        <div class="metric-value">Rp {{ "{:,.0f}".format(total_penarikan) if total_penarikan else "0" }}</div>
+        <div class="metric-label" data-i18n="verification_queue">Antrean Pendaftaran</div>
+        <div class="metric-value">{{ "{:,}".format(total_antrean) if total_antrean else "0" }}</div>
       </div>
       <div class="metric-card">
         <div class="metric-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
         </div>
-        <div class="metric-label" data-i18n="co_op_balance">Saldo Koperasi</div>
-        <div class="metric-value">Rp {{ "{:,.0f}".format(saldo_akhir) if saldo_akhir else "0" }}</div>
+        <div class="metric-label" data-i18n="total_withdrawals">Total Penarikan</div>
+        <div class="metric-value">Rp {{ "{:,.0f}".format(penarikan) if penarikan else "0" }}</div>
       </div>
     </section>
     
@@ -305,7 +291,7 @@
       <div class="dashboard-card">
         <div class="card-header">
           <h3 data-i18n="member_growth">Pertumbuhan Anggota</h3>
-          <span style="font-size: 11px; color: #a49191;" data-i18n="last_6_months">6 Bulan Terakhir</span>
+          <span style="font-size: 11px; color: #a49191;" data-i18n="last_3_months">3 Bulan Terakhir</span>
         </div>
         <div style="height: 300px; position: relative;">
           <canvas id="growthChart" 
@@ -316,14 +302,13 @@
       
       <div class="dashboard-card">
         <div class="card-header">
-          <h3 data-i18n="volume_tx">Volume Transaksi</h3>
-          <span style="font-size: 11px; color: #a49191;" data-i18n="deposit_withdraw">Setor vs Tarik</span>
+          <h3 data-i18n="saving_distribution">Distribusi Simpanan</h3>
+          <span style="font-size: 11px; color: #a49191;" data-i18n="by_saving_type">Berdasarkan Jenis</span>
         </div>
         <div style="height: 300px; position: relative;">
           <canvas id="txChart"
             data-labels='{{ tx_labels | tojson | safe }}'
-            data-setor='{{ setor_data | tojson | safe }}'
-            data-tarik='{{ tarik_data | tojson | safe }}'></canvas>
+            data-setor='{{ setor_data | tojson | safe }}'></canvas>
         </div>
       </div>
     </div>
@@ -332,7 +317,7 @@
       <!-- QUEUE -->
       <div class="dashboard-card" style="padding: 0; overflow: hidden;">
         <div class="card-header" style="padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3efec;">
-          <h3 data-i18n="verification_queue" style="margin: 0;">Antrean Verifikasi</h3>
+          <h3 data-i18n="verification_queue" style="margin: 0;">Antrean Pendaftaran</h3>
           <a href="/registration" data-i18n="view_all">Lihat Semua</a>
         </div>
         <div class="ent-table-wrapper" style="max-height: 400px;">
@@ -351,13 +336,13 @@
                   <td>
                     <div style="display: flex; align-items: center; gap: 12px;">
                       <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(110, 11, 11, 0.1); color: #6e0b0b; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px;">
-                        {{ m.full_name[0] | upper if m.full_name else '?' }}
+                        {{ m.ocr_name[0] | upper if m.ocr_name else '?' }}
                       </div>
-                      <span style="font-weight: 700; color: #111;">{{ m.full_name }}</span>
+                      <span style="font-weight: 700; color: #111;">{{ m.ocr_name or m.phone or 'Tanpa Nama' }}</span>
                     </div>
                   </td>
-                  <td style="text-align: center; font-size: 11px; color: #888;">{{ m.date_joined.strftime('%d %b %Y') if m.date_joined else '-' }}</td>
-                  <td style="text-align: right;"><span class="status-pill status-tidak-aktif" style="background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7;">{{ m.status }}</span></td>
+                  <td style="text-align: center; font-size: 11px; color: #888;">{{ m.created_at.strftime('%d %b %Y') if m.created_at else '-' }}</td>
+                  <td style="text-align: right;"><span class="status-pill status-tidak-aktif" style="background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; text-transform: uppercase;">{{ m.approval_status }}</span></td>
                 </tr>
                 {% endfor %}
               {% else %}
@@ -390,14 +375,20 @@
                 <tr>
                   <td>
                     <div style="display: flex; flex-direction: column;">
-                      <span style="font-weight: 700; color: #111;">{{ tx.name }}</span>
-                      <span style="font-size: 10px; color: #888;">{{ tx.tx_type }}</span>
+                      <span style="font-weight: 700; color: #111;">{{ tx.obj.member.full_name if tx.type == 'TARIK' else 'Payroll Otomatis' }}</span>
+                      <span style="font-size: 10px; color: #888;">{{ tx.date.strftime('%d %b %Y, %H:%M') if tx.date else '' }} • {{ 'Penarikan' if tx.type == 'TARIK' else 'Batch: ' ~ tx.obj.batch_code }}</span>
                     </div>
                   </td>
                   <td style="text-align: right;">
-                    <span style="font-weight: 800; color: {{ '#22c55e' if tx.tx_type == 'SETOR' else '#ef4444' }};">
-                      {{ '+' if tx.tx_type == 'SETOR' else '-' }}Rp {{ "{:,.0f}".format(tx.amount) }}
+                    {% if tx.type == 'PAYROLL' %}
+                    <span style="font-weight: 800; color: #22c55e;">
+                      +Rp {{ "{:,.0f}".format(tx.obj.total_amount) }}
                     </span>
+                    {% else %}
+                    <span style="font-weight: 800; color: #ef4444;">
+                      -Rp {{ "{:,.0f}".format(tx.obj.amount) }}
+                    </span>
+                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}

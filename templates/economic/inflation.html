@@ -33,7 +33,10 @@
   <!-- Table -->
   <div class="ent-table-container" style="background:white; border-radius:24px; box-shadow:0 10px 30px rgba(0,0,0,0.05);">
     <div class="ent-table-header" style="padding:25px 30px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f3efec; flex-wrap:wrap; gap:15px;">
-      <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b;">Data Historis Inflasi</h3>
+      <div style="display:flex; align-items:center; gap:20px;">
+        <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b;">Data Historis Inflasi</h3>
+        <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+      </div>
       <div style="display:flex; align-items:center; gap:15px;">
         <form method="GET" action="" style="display:flex; gap:10px; align-items:center; margin:0;">
             <input type="date" name="start_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ start_date or '' }}">
@@ -66,8 +69,8 @@
           <tr>
             <td style="text-align:center; font-weight:800; color:#6e0b0b;">{{ loop.index }}</td>
             <td style="font-weight:700;">{{ item.periode_str }}</td>
-            <td style="text-align:center; font-weight:800; font-size:1.1rem;
-                       color: {% if item.inflasi_persen > 4 %}#ef4444{% elif item.inflasi_persen > 3 %}#f59e0b{% else %}#10b981{% endif %};">
+            <td style="text-align:center; font-weight:800; font-size:1.1rem;"
+                class="{% if item.inflasi_persen > 4 %}color-danger{% elif item.inflasi_persen > 3 %}color-warning{% else %}color-success{% endif %}">
               {{ item.inflasi_persen }}%
             </td>
             <td style="text-align:center;"><span class="eco-source-badge">{{ item.sumber }}</span></td>
@@ -103,7 +106,16 @@
   .eco-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; }
   .eco-card-header h3 { margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b; }
   .eco-source-badge { font-size:10px; background:#f3f3f3; padding:4px 10px; border-radius:6px; font-weight:700; color:#555; }
+  .color-danger { color: #ef4444 !important; }
+  .color-warning { color: #f59e0b !important; }
+  .color-success { color: #10b981 !important; }
 </style>
+
+<!-- Hidden data container to pass Jinja data to Javascript safely without triggering JS linter errors -->
+<div id="inflasi-chart-data" 
+     data-prices='[{% for item in data|reverse %}{"label": "{{ item.periode_str }}", "value": {{ item.inflasi_persen }}}{% if not loop.last %},{% endif %}{% endfor %}]'
+     data-is-filtered="{% if start_date or end_date %}true{% else %}false{% endif %}"
+     style="display:none;"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -116,17 +128,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const labels = [];
   const values = [];
     
-  const rawData = [
-    {% for item in data|reverse %}
-      { label: '{{ item.periode_str }}', value: {{ item.inflasi_persen }} },
-    {% endfor %}
-  ];
+  const dataEl = document.getElementById('inflasi-chart-data');
+  const rawData = JSON.parse(dataEl ? dataEl.getAttribute('data-prices') || '[]' : '[]');
+  const isFiltered = dataEl && dataEl.getAttribute('data-is-filtered') === 'true';
     
   let filteredData = rawData;
-  {% if not start_date and not end_date %}
+  if (!isFiltered) {
     const currentYear = new Date().getFullYear().toString();
     filteredData = rawData.filter(d => d.label.includes(currentYear));
-  {% endif %}
+  }
     
   filteredData.forEach(d => {
       labels.push(d.label);

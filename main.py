@@ -1,4 +1,5 @@
 import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import pymysql
 from dotenv import load_dotenv
 
@@ -15,13 +16,14 @@ from routes.finance_routes import finance_bp
 from routes.report_routes import report_bp
 from routes.analytics_routes import analytics_bp
 from routes.economic_routes import economic_bp
+from routes.news_routes import news_bp
 from flask_mail import Mail
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
 # Aktifkan CORS agar Flutter (HP) bisa mengakses API dari laptop
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})  # type: ignore
 
 # Register Blueprint & DB
 db.init_app(app)
@@ -34,6 +36,7 @@ app.register_blueprint(finance_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(analytics_bp)
 app.register_blueprint(economic_bp)
+app.register_blueprint(news_bp)
 
 @app.route("/")
 def index():
@@ -62,5 +65,23 @@ if __name__ == "__main__":
             db.create_all()
     except Exception as e:
         print(f"Warning during table creation: {e}")
+
+    # Pra-load model OCR & scheduler hanya di proses utama (mencegah berjalan ganda saat reload)
+    is_main_process = (not app.config.get('DEBUG', False)) or (os.environ.get('WERKZEUG_RUN_MAIN') == 'true')
+    
+    if is_main_process:
+        import threading
+        from utils.ocr_helper import warm_up_models
+        warmup_thread = threading.Thread(target=warm_up_models, daemon=True)
+        warmup_thread.start()
+
+        # Inisialisasi scheduler otomatis pengambilan data ekonomi (UAS Big Data Kriteria)
+        try:
+            from utils.scheduler import init_scheduler
+            init_scheduler(app)
+            print(">>> Scheduler Otomatis (Daily/Hourly Scraper) AKTIF!")
+        except Exception as e:
+            print(f"Warning: Gagal mengaktifkan background scheduler: {e}")
+
     print(">>> Aplikasi SIAP dijalankan!")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, use_reloader=True)

@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, send_file, jsonify, current_app
-from models.user_model import db, User, Member, Transaction, MemberRegistration, MobileUser, SavingType, MemberSavingBalance, SavingTransaction, WithdrawalRequest, ActivityLog, OTPVerification, DepositRequest
+from models.user_model import db, User, Member, Transaction, MemberRegistration, MobileUser, SavingType, MemberSavingBalance, SavingTransaction, WithdrawalRequest, ActivityLog, OTPVerification, DepositRequest, PayrollBatch
 from flask_mail import Mail, Message
 from threading import Thread
 import random
@@ -65,6 +65,16 @@ def parse_ocr_date(date_str):
     if not date_str:
         return None
     
+    import re
+    # Extract date pattern like DD-MM-YYYY or DD/MM/YYYY
+    match = re.search(r'(\d{2})[-/](\d{2})[-/](\d{4})', date_str)
+    if match:
+        clean_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+        try:
+            return datetime.strptime(clean_date, '%d-%m-%Y').date()
+        except ValueError:
+            pass
+            
     formats = ['%d-%m-%Y', '%d/%m/%Y', '%Y-%m-%d', '%d %b %Y']
     for fmt in formats:
         try:
@@ -273,65 +283,93 @@ def dashboard():
     current_user = User.query.get(session['user_id'])
 
     total_members = Member.query.count()
-    simpanan = db.session.query(func.sum(Transaction.amount)).filter_by(tx_type='SETOR', status='Selesai').scalar() or 0
-    penarikan = db.session.query(func.sum(Transaction.amount)).filter_by(tx_type='TARIK', status='Selesai').scalar() or 0
-    saldo_akhir = simpanan - penarikan
+    # Use real enterprise balances
+    simpanan = db.session.query(func.sum(MemberSavingBalance.balance)).scalar() or 0
+    penarikan = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        SavingTransaction.transaction_type == 'CREDIT',
+        SavingTransaction.transaction_source == 'WITHDRAWAL',
+        SavingTransaction.transaction_status == 'SUCCESS',
+        SavingTransaction.deleted_at.is_(None)
+    ).scalar() or 0
+    saldo_akhir = simpanan
     
-    request_members = Member.query.filter_by(status='Pending').limit(5).all()
-    recent_tx = Transaction.query.order_by(Transaction.date.desc()).limit(5).all()
+    # Use MemberRegistration for pending queues
+    request_members = MemberRegistration.query.filter_by(approval_status='PENDING').order_by(MemberRegistration.created_at.desc()).all()
+    total_antrean = len(request_members)
+    
+    # Ambil transaksi terbaru hari ini (SavingTransaction)
+    today = datetime.now().date()
+    try:
+        recent_tarik = SavingTransaction.query.filter(
+            SavingTransaction.transaction_type == 'WITHDRAWAL',
+            func.date(SavingTransaction.transaction_date) == today
+        ).order_by(SavingTransaction.transaction_date.desc()).limit(5).all()
+    except:
+        recent_tarik = []
+    
+    # Ambil Payroll hari ini (jika ada)
+    recent_payroll = PayrollBatch.query.filter(
+        func.date(PayrollBatch.uploaded_at) == today
+    ).order_by(PayrollBatch.uploaded_at.desc()).all()
 
-    # --- CHART DATA: Member Growth (Last 6 Months) ---
+    recent_tx = []
+    for tx in recent_tarik:
+        recent_tx.append({'type': 'TARIK', 'obj': tx, 'date': tx.transaction_date})
+    for pr in recent_payroll:
+        recent_tx.append({'type': 'PAYROLL', 'obj': pr, 'date': pr.uploaded_at})
+    
+    recent_tx.sort(key=lambda x: x['date'], reverse=True)
+    recent_tx = recent_tx[:5]
+
+    # --- CHART DATA: Member Growth (Daily - Last 7 Days) ---
     growth_labels = []
     growth_data = []
-    for i in range(5, -1, -1):
-        month_date = datetime.now() - timedelta(days=i*30)
-        label = month_date.strftime('%b')
-        growth_labels.append(label)
+    for i in range(89, -1, -1):
+        day_date = datetime.now() - timedelta(days=i)
         
-        # Count total active members up to that month
+        # Count members approved ON this day
         count = Member.query.filter(
-            Member.date_joined <= month_date,
-            Member.status == 'AKTIF'
+            func.date(Member.date_joined) == day_date.date()
         ).count()
-        growth_data.append(count)
+        
+        # Tampilkan hanya hari yang ada pendaftar, DAN abaikan anomali data masal (misal > 500) 
+        # agar skala Y tidak hancur dan garis naik-turun tetap terlihat.
+        if count > 0 and count < 500:
+            label = day_date.strftime('%d %b')
+            growth_labels.append(label)
+            growth_data.append(count)
 
-    # --- CHART DATA: Transactions (Last 6 Months) ---
+    # --- CHART DATA: Saving Distribution ---
+    dist_query = db.session.query(
+        SavingType.name,
+        func.sum(MemberSavingBalance.balance)
+    ).join(SavingType, MemberSavingBalance.saving_type_id == SavingType.id)\
+     .group_by(SavingType.name).all()
+    
     tx_labels = []
     setor_data = []
-    tarik_data = []
-    for i in range(5, -1, -1):
-        month_date = datetime.now() - timedelta(days=i*30)
-        label = month_date.strftime('%b')
-        tx_labels.append(label)
+    for name, balance in dist_query:
+        tx_labels.append(name)
+        setor_data.append(float(balance or 0))
         
-        # Monthly total Setor
-        month_str = month_date.strftime('%Y-%m')
-        setor_total = db.session.query(func.sum(Transaction.amount)).filter(
-            Transaction.tx_type == 'SETOR',
-            func.date_format(Transaction.date, '%Y-%m') == month_str
-        ).scalar() or 0
-        setor_data.append(float(setor_total))
-        
-        # Monthly total Tarik
-        tarik_total = db.session.query(func.sum(Transaction.amount)).filter(
-            Transaction.tx_type == 'TARIK',
-            func.date_format(Transaction.date, '%Y-%m') == month_str
-        ).scalar() or 0
-        tarik_data.append(float(tarik_total))
+    if not tx_labels:
+        tx_labels = ['Belum ada data']
+        setor_data = [100]
+    
+    tarik_data = [] # Not used for doughnut chart
 
     return render_template('dashboard.html', 
                            current_user=current_user,
                            total_members=total_members,
-                           total_simpanan=simpanan,
-                           total_penarikan=penarikan,
+                           total_simpanan=saldo_akhir,
+                           total_antrean=total_antrean,
                            saldo_akhir=saldo_akhir,
                            request_members=request_members,
                            recent_tx=recent_tx,
                            growth_labels=growth_labels,
                            growth_data=growth_data,
                            tx_labels=tx_labels,
-                           setor_data=setor_data,
-                           tarik_data=tarik_data)
+                           setor_data=setor_data)
 
 @auth_bp.route('/members')
 def members():
@@ -817,6 +855,8 @@ def approve_registration(reg_id):
     # Buat data di tabel Member permanen
     new_member = Member(
         member_no="MBR-" + secrets.token_hex(4).upper(),
+        nik=reg.ocr_nik,
+        nip=reg.ocr_nip,
         full_name=reg.ocr_name or (reg.mobile_user.full_name if reg.mobile_user else "Unknown"),
         birth_date=birth_date_final,
         gender=gender_final,
@@ -825,7 +865,11 @@ def approve_registration(reg_id):
         address=reg.ocr_address,
         jabatan=jabatan_final,
         status='AKTIF',
-        mobile_user_id=reg.mobile_user_id
+        mobile_user_id=reg.mobile_user_id,
+        pas_foto=reg.path_pas_foto,
+        signature_path=reg.path_tanda_tangan,
+        bank_name=reg.bank_name,
+        bank_account_number=reg.bank_account_number
     )
     
     db.session.add(new_member)
@@ -918,8 +962,14 @@ def ledger():
     
     # 1. Fetch Stats
     total_transactions = SavingTransaction.query.count()
-    total_balance = db.session.query(func.sum(MemberSavingBalance.balance)).scalar() or 0
-    total_withdrawal = db.session.query(func.sum(WithdrawalRequest.amount)).filter_by(approval_status='APPROVED').scalar() or 0
+    # Use real enterprise balances
+    simpanan = db.session.query(func.sum(MemberSavingBalance.balance)).scalar() or 0
+    penarikan = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        SavingTransaction.transaction_type == 'CREDIT',
+        SavingTransaction.transaction_source == 'WITHDRAWAL',
+        SavingTransaction.transaction_status == 'SUCCESS',
+        SavingTransaction.deleted_at.is_(None)
+    ).scalar() or 0
     pending_review = DepositRequest.query.filter_by(approval_status='PENDING').count()
     
     from flask import request, make_response
@@ -927,48 +977,55 @@ def ledger():
     from io import StringIO
     from datetime import datetime
     
-    # Date Filtering
-    start_date_str = request.args.get('start_date', '')
-    end_date_str = request.args.get('end_date', '')
     export_format = request.args.get('export', '')
+    search_query = request.args.get('search', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
     
-    query = SavingTransaction.query
-    if start_date_str:
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-            query = query.filter(SavingTransaction.transaction_date >= start_date)
-        except ValueError:
-            pass
-            
-    if end_date_str:
-        try:
-            # Set to end of day
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
-            query = query.filter(SavingTransaction.transaction_date <= end_date)
-        except ValueError:
-            pass
+    # Exclude dummy members by default to show real data
+    query = Member.query.filter(~Member.full_name.ilike('%Dummy%'))
     
-    transactions = query.order_by(SavingTransaction.transaction_date.desc()).limit(500).all()
+    if search_query:
+        query = query.filter(db.or_(
+            Member.full_name.ilike(f'%{search_query}%'),
+            Member.member_no.ilike(f'%{search_query}%')
+        ))
+        
+    pagination = query.order_by(Member.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    members = pagination.items
+    
+    saving_types = SavingType.query.all()
+    member_balances = {}
+    for m in members:
+        balances = MemberSavingBalance.query.filter_by(member_id=m.id).all()
+        member_balances[m.id] = {b.saving_type_id: float(b.balance) for b in balances}
     
     if export_format == 'excel':
+        # For export, get all matching results (no pagination)
+        all_members = query.order_by(Member.id.desc()).all()
         si = StringIO()
         cw = csv.writer(si)
-        cw.writerow(['Tanggal', 'Anggota', 'No. Anggota', 'Kategori', 'Sumber Bank', 'No. Rekening', 'Nominal', 'Status'])
-        for tx in transactions:
-            kategori = tx.saving_type.name if tx.saving_type else '-'
-            bank = tx.source_bank or (tx.member.bank_name if tx.member else tx.transaction_source) or '-'
-            acc = tx.source_account or (tx.member.bank_account_no if tx.member else '-')
-            nominal = f"{'+' if tx.transaction_type == 'CREDIT' else '-'}Rp {tx.amount:,.0f}".replace(',', '.')
-            cw.writerow([
-                tx.transaction_date.strftime('%Y-%m-%d %H:%M'),
-                tx.member.full_name if tx.member else 'Unknown',
-                tx.member.member_no if tx.member else '-',
-                kategori,
-                bank,
-                acc,
-                nominal,
-                tx.transaction_status
-            ])
+        
+        headers = ['No', 'Anggota', 'No. Anggota', 'Bank', 'No. Rekening']
+        for st in saving_types:
+            headers.append(st.name.upper())
+        headers.append('Total Saldo')
+        cw.writerow(headers)
+        
+        for idx, m in enumerate(all_members, start=1):
+            row = [idx, m.full_name, m.member_no, m.bank_name or '-', m.bank_account_number or '-']
+            total = 0
+            balances = MemberSavingBalance.query.filter_by(member_id=m.id).all()
+            b_dict = {b.saving_type_id: float(b.balance) for b in balances}
+            
+            for st in saving_types:
+                val = b_dict.get(st.id, 0)
+                total += val
+                row.append(f"Rp {val:,.0f}".replace(',', '.'))
+            
+            row.append(f"Rp {total:,.0f}".replace(',', '.'))
+            cw.writerow(row)
+            
         output = make_response(si.getvalue())
         output.headers["Content-Disposition"] = "attachment; filename=ledger_export.csv"
         output.headers["Content-type"] = "text/csv"
@@ -983,10 +1040,12 @@ def ledger():
                          total_balance=float(total_balance),
                          total_withdrawal=float(total_withdrawal),
                          pending_review=pending_review,
-                         transactions=transactions,
+                         members=members,
+                         saving_types=saving_types,
+                         member_balances=member_balances,
                          pending_deposits=pending_deposits,
-                         start_date=start_date_str,
-                         end_date=end_date_str)
+                         pagination=pagination,
+                         search_query=search_query)
 
 @auth_bp.route('/withdrawals')
 def withdrawals():
@@ -1260,6 +1319,196 @@ def google_mobile_login():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# ================= GOOGLE MOBILE LOGIN (Flutter) — Khusus User Terdaftar =================
+@auth_bp.route('/api/auth/google-login-mobile', methods=['POST'])
+def google_login_mobile():
+    """
+    Endpoint LOGIN Google untuk Flutter.
+    HANYA bisa digunakan jika email sudah terdaftar & terverifikasi.
+    Jika belum terdaftar → kembalikan error agar user diarahkan ke Signup.
+    """
+    try:
+        data = request.json
+        token = data.get('idToken')
+        if not token:
+            return jsonify({'success': False, 'error': 'idToken is required'}), 400
+
+        allowed_clients = [
+            os.getenv('GOOGLE_CLIENT_ID'),
+            os.getenv('GOOGLE_CLIENT_ID_MOBILE')
+        ]
+        id_info = id_token.verify_oauth2_token(token, requests.Request(), allowed_clients)
+        email = id_info.get('email')
+
+        if not email:
+            return jsonify({'success': False, 'error': 'Invalid token: Email missing'}), 400
+
+        # Cek apakah user sudah terdaftar
+        user = MobileUser.query.filter_by(email=email).first()
+
+        if not user:
+            # Belum pernah daftar sama sekali
+            return jsonify({
+                'success': False,
+                'error': 'Akun Google ini belum terdaftar. Silakan Signup terlebih dahulu.',
+                'needs_signup': True
+            }), 404
+
+        if not user.is_verified:
+            # Sudah daftar tapi belum verifikasi OTP
+            return jsonify({
+                'success': False,
+                'error': 'Akun belum diverifikasi. Silakan selesaikan verifikasi OTP terlebih dahulu.',
+                'needs_verification': True,
+                'email': email
+            }), 403
+
+        # Update google_id jika belum tersimpan
+        if not user.google_id:
+            user.google_id = id_info.get('sub')
+            db.session.commit()
+
+        session['mobile_user_id'] = user.id
+
+        # Generate JWT token
+        import jwt as pyjwt
+        from datetime import timezone
+        jwt_payload = {
+            'user_id': user.id,
+            'email': user.email,
+            'exp': datetime.now(timezone.utc) + timedelta(days=30)
+        }
+        jwt_secret = current_app.config.get('SECRET_KEY', 'fallback_secret')
+        jwt_token = pyjwt.encode(jwt_payload, jwt_secret, algorithm='HS256')
+
+        registration = MemberRegistration.query.filter_by(mobile_user_id=user.id).order_by(MemberRegistration.created_at.desc()).first()
+        reg_status = registration.status if registration else "not_started"
+
+        return jsonify({
+            'success': True,
+            'message': 'Login dengan Google berhasil',
+            'token': jwt_token,
+            'registration_status': reg_status,
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'email': user.email
+            }
+        })
+
+    except ValueError as e:
+        return jsonify({'success': False, 'error': f'Invalid token: {str(e)}'}), 401
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ================= GOOGLE MOBILE REGISTER (Flutter) — Kirim OTP ke Email Google =================
+@auth_bp.route('/api/auth/google-register-mobile', methods=['POST'])
+def google_register_mobile():
+    """
+    Endpoint SIGNUP Google untuk Flutter.
+    Verifikasi token Google, cek apakah email belum terdaftar,
+    lalu buat akun pending dan kirim OTP ke email Google.
+    """
+    try:
+        data = request.json
+        token = data.get('idToken')
+        if not token:
+            return jsonify({'success': False, 'error': 'idToken is required'}), 400
+
+        allowed_clients = [
+            os.getenv('GOOGLE_CLIENT_ID'),
+            os.getenv('GOOGLE_CLIENT_ID_MOBILE')
+        ]
+        id_info = id_token.verify_oauth2_token(token, requests.Request(), allowed_clients)
+        email = id_info.get('email')
+        name = id_info.get('name', '')
+
+        if not email:
+            return jsonify({'success': False, 'error': 'Invalid token: Email missing'}), 400
+
+        # Cek apakah email sudah terdaftar & terverifikasi
+        existing_user = MobileUser.query.filter_by(email=email).first()
+        if existing_user and existing_user.is_verified:
+            return jsonify({
+                'success': False,
+                'error': 'Akun Google ini sudah terdaftar. Silakan Login.',
+                'already_registered': True
+            }), 409
+
+        # Buat atau update akun pending (belum terverifikasi)
+        if existing_user:
+            # Akun ada tapi belum diverifikasi — update data
+            existing_user.full_name = name
+            existing_user.google_id = id_info.get('sub')
+            user = existing_user
+        else:
+            # Buat akun baru (pending, belum terverifikasi)
+            user = MobileUser(
+                full_name=name,
+                email=email,
+                google_id=id_info.get('sub'),
+                status="AKTIF",
+                is_verified=False
+            )
+            db.session.add(user)
+
+        db.session.commit()
+
+        # Generate dan kirim OTP ke email Google
+        otp_code = str(random.randint(100000, 999999))
+        expires_at = datetime.utcnow() + timedelta(minutes=15)
+
+        # Hapus OTP lama untuk email yang sama (jika ada)
+        OTPVerification.query.filter_by(email=email, purpose='registration').delete()
+
+        otp_entry = OTPVerification(
+            email=email,
+            otp_code=otp_code,
+            purpose='registration',
+            expires_at=expires_at
+        )
+        db.session.add(otp_entry)
+        db.session.commit()
+
+        # Kirim Email OTP secara async
+        msg = Message(
+            "Kode Verifikasi Pendaftaran Koperasi",
+            sender=current_app.config['MAIL_USERNAME'],
+            recipients=[email]
+        )
+        msg.body = (
+            f"Halo {name},\n\n"
+            f"Kode verifikasi pendaftaran Anda adalah: {otp_code}\n\n"
+            f"Kode ini berlaku selama 15 menit.\n\n"
+            f"Jika Anda tidak melakukan pendaftaran ini, abaikan email ini."
+        )
+
+        app = current_app._get_current_object()
+
+        def send_async_email(app_obj, message):
+            with app_obj.app_context():
+                try:
+                    mail.send(message)
+                except Exception as e:
+                    print(f"Async email error: {e}")
+
+        Thread(target=send_async_email, args=(app, msg)).start()
+
+        return jsonify({
+            'success': True,
+            'message': f'Kode OTP telah dikirim ke {email}. Silakan cek inbox Anda.',
+            'email': email,
+            'user_id': user.id,
+            'debug_otp': otp_code  # Hapus di production
+        })
+
+    except ValueError as e:
+        return jsonify({'success': False, 'error': f'Invalid token: {str(e)}'}), 401
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ================= MOBILE AUTH API (Flutter Manual) =================
 @auth_bp.route('/api/auth/mobile-register', methods=['POST'])
 def mobile_register():
@@ -1493,8 +1742,7 @@ def view_logs():
     
     pagination = ActivityLog.query.order_by(ActivityLog.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     all_logs = pagination.items
-    
-    return render_template('logs.html', 
+    return render_template('logs.html',
                            current_user=current_user,
                            logs=all_logs,
                            pagination=pagination)
@@ -1505,6 +1753,7 @@ def logout():
     flash("Anda telah berhasil keluar.", "success")
     return redirect(url_for('auth.login'))
 
+
 # ── ADMIN MEMBER DETAIL API (for member_detail_modal.html) ──────────────────
 @auth_bp.route('/api/member/<int:member_id>/financial_details')
 def admin_member_financial_details(member_id):
@@ -1513,67 +1762,170 @@ def admin_member_financial_details(member_id):
 
     member = Member.query.get_or_404(member_id)
 
-    # Saving balances (include id for click-through)
     balances = MemberSavingBalance.query.filter_by(member_id=member.id).all()
     total_balance = 0
     balance_data = []
+    seen_type_ids = set()
     for b in balances:
-        st = SavingType.query.get(b.saving_type_id)
+        st   = SavingType.query.get(b.saving_type_id)
         name = st.name if st else f'Tipe {b.saving_type_id}'
-        balance_data.append({
-            'id': b.saving_type_id,
-            'name': name,
-            'balance': float(b.balance)
-        })
+        dep  = DepositRequest.query.filter_by(member_id=member.id, saving_type_id=b.saving_type_id)\
+            .filter(DepositRequest.approval_status.in_(['APPROVED', 'PENDING']))\
+            .order_by(DepositRequest.created_at.desc()).first()
+        bank    = (dep.source_bank or member.bank_name or '-') if dep else (member.bank_name or '-' if b.balance > 0 else '-')
+        account = (dep.source_account_no or member.bank_account_number or '-') if dep else (member.bank_account_number or '-' if b.balance > 0 else '-')
+        balance_data.append({'id': b.saving_type_id, 'name': name, 'balance': float(b.balance), 'bank': bank, 'account': account})
         total_balance += float(b.balance)
+        seen_type_ids.add(b.saving_type_id)
 
-    # Recent 50 transactions (date as ISO for filtering)
+    for dep in DepositRequest.query.filter_by(member_id=member.id, approval_status='APPROVED').all():
+        if dep.saving_type_id not in seen_type_ids:
+            seen_type_ids.add(dep.saving_type_id)
+            st   = SavingType.query.get(dep.saving_type_id)
+            name = st.name if st else f'Tipe {dep.saving_type_id}'
+            latest = DepositRequest.query.filter_by(member_id=member.id, saving_type_id=dep.saving_type_id)\
+                .filter(DepositRequest.approval_status.in_(['APPROVED', 'PENDING']))\
+                .order_by(DepositRequest.created_at.desc()).first()
+            bank    = (latest.source_bank or member.bank_name or '-') if latest else '-'
+            account = (latest.source_account_no or member.bank_account_number or '-') if latest else '-'
+            balance_data.append({'id': dep.saving_type_id, 'name': name, 'balance': 0.0, 'bank': bank, 'account': account})
+
     txs = SavingTransaction.query.filter_by(member_id=member.id)\
         .order_by(SavingTransaction.transaction_date.desc()).limit(50).all()
     tx_data = []
     for tx in txs:
         st = SavingType.query.get(tx.saving_type_id)
         tx_data.append({
-            'date': tx.transaction_date.strftime('%d %b %Y') if tx.transaction_date else '-',
-            'date_iso': tx.transaction_date.strftime('%Y-%m-%d') if tx.transaction_date else '',
-            'saving_type': st.name if st else '-',
+            'date':           tx.transaction_date.strftime('%d %b %Y') if tx.transaction_date else '-',
+            'date_iso':       tx.transaction_date.strftime('%Y-%m-%d') if tx.transaction_date else '',
+            'saving_type':    st.name if st else '-',
             'saving_type_id': tx.saving_type_id,
-            'type': tx.transaction_type,
-            'amount': float(tx.amount),
-            'status': tx.transaction_status or '-',
-            'description': tx.description or '-'
+            'type':           tx.transaction_type,
+            'amount':         float(tx.amount),
+            'status':         tx.transaction_status or '-',
+            'description':    tx.description or '-'
         })
 
-    # Analytics
-    all_success = SavingTransaction.query.filter_by(
-        member_id=member.id, transaction_status='SUCCESS'
-    ).all()
-    total_payroll = sum(float(t.amount) for t in all_success if getattr(t, 'transaction_source', '') == 'PAYROLL' and t.transaction_type in ['DEBIT', 'DEPOSIT'])
+    all_success      = SavingTransaction.query.filter_by(member_id=member.id, transaction_status='SUCCESS').all()
+    total_payroll    = sum(float(t.amount) for t in all_success if getattr(t, 'transaction_source', '') == 'PAYROLL' and t.transaction_type in ['DEBIT', 'DEPOSIT'])
     total_withdrawal = sum(float(t.amount) for t in all_success if t.transaction_type in ['WITHDRAWAL', 'CREDIT'])
 
     return jsonify({
         'member': {
-            'id': member.id,
-            'member_no': member.member_no,
-            'name': member.full_name,
-            'nik': member.nik or '-',
-            'nip': member.nip or '-',
-            'jabatan': member.jabatan or '-',
-            'gender': member.gender or '-',
-            'birth_date': member.birth_date.strftime('%d %b %Y') if member.birth_date else '-',
-            'phone': member.phone or '-',
-            'email': member.email or '-',
-            'address': member.address or '-',
-            'status': member.status or 'AKTIF',
+            'id':          member.id,
+            'member_no':   member.member_no,
+            'name':        member.full_name,
+            'nik':         member.nik or '-',
+            'nip':         member.nip or '-',
+            'jabatan':     member.jabatan or '-',
+            'gender':      member.gender or '-',
+            'birth_date':  member.birth_date.strftime('%d %b %Y') if member.birth_date else '-',
+            'phone':       member.phone or '-',
+            'email':       member.email or '-',
+            'address':     member.address or '-',
+            'status':      member.status or 'AKTIF',
             'date_joined': member.date_joined.strftime('%d %b %Y') if member.date_joined else '-',
-            'pas_foto': member.pas_foto or '',
+            'pas_foto':    member.pas_foto or '',
         },
-        'total_balance': total_balance,
-        'balances': balance_data,
+        'total_balance':       total_balance,
+        'balances':            balance_data,
         'recent_transactions': tx_data,
         'analytics': {
-            'total_payroll': total_payroll,
+            'total_payroll':    total_payroll,
             'total_withdrawal': total_withdrawal,
         }
     })
 
+
+# ── MEMBER EXPORT (PDF / Excel) ───────────────────────────────────────────────
+@auth_bp.route('/api/member/<int:member_id>/export')
+def member_export(member_id):
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+
+    member = Member.query.get_or_404(member_id)
+    fmt  = request.args.get('format', 'excel')
+    mode = request.args.get('mode', 'history')
+
+    if mode == 'saving':
+        balances_q = MemberSavingBalance.query.filter_by(member_id=member_id).all()
+        seen_ids   = set()
+        balance_rows = []
+        for b in balances_q:
+            st  = SavingType.query.get(b.saving_type_id)
+            dep = DepositRequest.query.filter_by(member_id=member_id, saving_type_id=b.saving_type_id)\
+                .filter(DepositRequest.approval_status.in_(['APPROVED', 'PENDING']))\
+                .order_by(DepositRequest.created_at.desc()).first()
+            bank    = (dep.source_bank or member.bank_name or '-') if dep else (member.bank_name or '-' if b.balance > 0 else '-')
+            account = (dep.source_account_no or member.bank_account_number or '-') if dep else (member.bank_account_number or '-' if b.balance > 0 else '-')
+            balance_rows.append({'Jenis Simpanan': st.name if st else '-', 'Saldo': float(b.balance), 'Bank': bank, 'No. Rekening': account})
+            seen_ids.add(b.saving_type_id)
+
+        for dep in DepositRequest.query.filter_by(member_id=member_id, approval_status='APPROVED').all():
+            if dep.saving_type_id not in seen_ids:
+                seen_ids.add(dep.saving_type_id)
+                st = SavingType.query.get(dep.saving_type_id)
+                balance_rows.append({
+                    'Jenis Simpanan': st.name if st else '-', 'Saldo': 0.0,
+                    'Bank': dep.source_bank or member.bank_name or '-',
+                    'No. Rekening': dep.source_account_no or member.bank_account_number or '-'
+                })
+
+        if fmt == 'excel':
+            df = pd.DataFrame(balance_rows, columns=['Jenis Simpanan', 'Saldo', 'Bank', 'No. Rekening'])
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Simpanan')
+                ws = writer.sheets['Simpanan']
+                for cell in ws[1]:
+                    cell.fill = PatternFill('solid', fgColor='6e0b0b')
+                    cell.font = Font(bold=True, color='FFFFFF', size=11)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                for col in ws.columns:
+                    ws.column_dimensions[col[0].column_letter].width = min(max((len(str(c.value)) if c.value else 0) for c in col) + 4, 40)
+            output.seek(0)
+            fname = f'Simpanan_{member.full_name.replace(" ","_")}_{datetime.now().strftime("%Y%m%d")}.xlsx'
+            return send_file(output, as_attachment=True, download_name=fname,
+                             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        else:
+            return render_template('print_member_balances.html', member=member, balance_rows=balance_rows,
+                                   export_date=datetime.now().strftime('%d %B %Y, %H:%M'))
+    else:
+        all_tx = SavingTransaction.query.filter_by(member_id=member_id)\
+            .order_by(SavingTransaction.transaction_date.desc()).all()
+        tx_rows = []
+        for tx in all_tx:
+            st = SavingType.query.get(tx.saving_type_id)
+            tx_rows.append({
+                'Tanggal':        tx.transaction_date.strftime('%d/%m/%Y %H:%M') if tx.transaction_date else '-',
+                'Jenis Simpanan': st.name if st else '-',
+                'Keterangan':     tx.description or '-',
+                'Tipe':           tx.transaction_type or '-',
+                'Status':         tx.transaction_status or '-',
+                'Nominal':        float(tx.amount or 0),
+            })
+
+        if fmt == 'excel':
+            cols = ['Tanggal', 'Jenis Simpanan', 'Keterangan', 'Tipe', 'Status', 'Nominal']
+            df = pd.DataFrame(tx_rows, columns=cols)
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Riwayat Mutasi')
+                ws = writer.sheets['Riwayat Mutasi']
+                for cell in ws[1]:
+                    cell.fill = PatternFill('solid', fgColor='6e0b0b')
+                    cell.font = Font(bold=True, color='FFFFFF', size=11)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                for i, row in enumerate(ws.iter_rows(min_row=2), start=2):
+                    fill = PatternFill('solid', fgColor='FFF5F5') if i % 2 == 0 else PatternFill('solid', fgColor='FFFFFF')
+                    for cell in row:
+                        cell.fill = fill
+                for col in ws.columns:
+                    ws.column_dimensions[col[0].column_letter].width = min(max((len(str(c.value)) if c.value else 0) for c in col) + 4, 40)
+            output.seek(0)
+            fname = f'Mutasi_{member.full_name.replace(" ","_")}_{datetime.now().strftime("%Y%m%d")}.xlsx'
+            return send_file(output, as_attachment=True, download_name=fname,
+                             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        else:
+            return render_template('print_member_details.html', member=member, tx_rows=tx_rows,
+                                   export_date=datetime.now().strftime('%d %B %Y, %H:%M'))

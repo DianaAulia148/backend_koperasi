@@ -3,38 +3,55 @@ import numpy as np
 import re
 import os
 import logging
+import threading
 from ultralytics import YOLO
 
 # Set up logging for OCR
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global instances
+# Global instances + lock agar thread-safe
 _paddle_ocr = None
 _yolo_model = None
+_paddle_lock = threading.Lock()
+_yolo_lock = threading.Lock()
 
 def get_paddle_ocr():
     global _paddle_ocr
     if _paddle_ocr is None:
-        logger.info("Memuat model PaddleOCR...")
-        # Matikan OneDNN/MKLDNN untuk mencegah C++ backend error di Windows
-        os.environ['FLAGS_use_mkldnn'] = '0'
-        # Import lazy to avoid slowing down startup if not used
-        from paddleocr import PaddleOCR
-        _paddle_ocr = PaddleOCR(use_angle_cls=True, lang='id', enable_mkldnn=False)
+        with _paddle_lock:
+            if _paddle_ocr is None:  # double-check setelah lock
+                logger.info("Memuat model PaddleOCR...")
+                os.environ['FLAGS_use_mkldnn'] = '0'
+                from paddleocr import PaddleOCR
+                _paddle_ocr = PaddleOCR(use_angle_cls=True, lang='id', enable_mkldnn=False)
+                logger.info("Model PaddleOCR berhasil dimuat.")
     return _paddle_ocr
 
 def get_yolo_model():
     global _yolo_model
     if _yolo_model is None:
-        yolo_path = os.path.join('runs', 'detect', 'ktp_model', 'weights', 'best.pt')
-        if os.path.exists(yolo_path):
-            logger.info("Memuat model YOLOv8 untuk deteksi KTP...")
-            _yolo_model = YOLO(yolo_path)
-        else:
-            logger.info("Model YOLOv8 belum dilatih/tidak ditemukan. Menggunakan fallback ke seluruh gambar.")
-            _yolo_model = "NOT_TRAINED"
+        with _yolo_lock:
+            if _yolo_model is None:  # double-check setelah lock
+                yolo_path = os.path.join('runs', 'detect', 'ktp_model', 'weights', 'best.pt')
+                if os.path.exists(yolo_path):
+                    logger.info("Memuat model YOLOv8 untuk deteksi KTP...")
+                    _yolo_model = YOLO(yolo_path)
+                    logger.info("Model YOLOv8 berhasil dimuat.")
+                else:
+                    logger.info("Model YOLOv8 belum dilatih/tidak ditemukan. Menggunakan fallback ke seluruh gambar.")
+                    _yolo_model = "NOT_TRAINED"
     return _yolo_model
+
+def warm_up_models():
+    """Pra-load semua model saat startup agar request pertama tidak lambat."""
+    logger.info(">>> [WARMUP] Memuat model OCR di background...")
+    try:
+        get_yolo_model()
+        get_paddle_ocr()
+        logger.info(">>> [WARMUP] Semua model siap digunakan.")
+    except Exception as e:
+        logger.error(f">>> [WARMUP] Gagal memuat model: {e}")
 
 def preprocess_ktp(img_path):
     img = cv2.imread(img_path)

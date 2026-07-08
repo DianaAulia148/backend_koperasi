@@ -16,6 +16,7 @@ python-Levenshtein
 et_xmlfile
 filelock
 Flask
+feedparser
 Flask-Login
 Flask-Mail
 flask-cors

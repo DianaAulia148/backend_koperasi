@@ -25,6 +25,9 @@ class Config:
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # Upload limit - gambar KTP dari HP bisa 5-15MB
+    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20MB
+    
     GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_ID_MOBILE = os.getenv("GOOGLE_CLIENT_ID_MOBILE")
     GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")

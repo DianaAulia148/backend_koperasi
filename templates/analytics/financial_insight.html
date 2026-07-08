@@ -5,6 +5,19 @@
     <div class="insight-header-panel glass-card" style="padding: 40px; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px; border-left: 5px solid #6e0b0b;">
         <h1 style="font-size: 1.8rem; font-weight: 800; color: #111; margin-bottom: 10px;">Financial Insights Dashboard</h1>
         <p style="color: #8c8282; font-weight: 500;">Analisis mendalam perilaku finansial anggota dan rekomendasi pertumbuhan.</p>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-top: 15px;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <span style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">📊 DATA: REAL DATABASE KOPERASI</span>
+                <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+            </div>
+            <form method="GET" action="{{ url_for('analytics.financial_insight') }}" style="display: flex; gap: 10px; align-items: center; margin: 0; background: white; padding: 6px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+                <span style="font-size: 12px; font-weight: 700; color: #555;">Periode:</span>
+                <input type="date" name="start_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ start_date or '' }}">
+                <span style="color: #888; font-weight: bold;">-</span>
+                <input type="date" name="end_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ end_date or '' }}">
+                <button type="submit" style="background: #6e0b0b; color: white; border: none; padding: 6px 15px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s;">Filter</button>
+            </form>
+        </div>
     </div>
 
     <div class="charts-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
@@ -29,15 +42,44 @@
                             <td style="text-align: right; font-weight: 800; color: #22c55e;">Rp {{ "{:,.0f}".format(balance).replace(',', '.') }}</td>
                         </tr>
                         {% endfor %}
+                        {% if not top_savers %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; padding: 30px; color: #999;">Belum ada data anggota</td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div class="dashboard-card" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
-            <h3 style="margin: 0 0 25px 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Simpanan Paling Populer</h3>
-            <div class="chart-body" style="height: 300px; position: relative;">
-                <canvas id="popularSavingChart"></canvas>
+        <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
+            <div class="ent-table-header" style="padding: 25px 30px; border-bottom: 1px solid #f3efec;">
+                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Top 5 Anggota (Simpanan Non-Aktif)</h3>
+            </div>
+            <div class="ent-table-wrapper">
+                <table class="ent-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">RANK</th>
+                            <th>NAMA ANGGOTA</th>
+                            <th style="text-align: right;">TOTAL SALDO NON-AKTIF</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, balance in top_inactive_savers %}
+                        <tr>
+                            <td style="text-align: center; font-weight: 800; color: #6e0b0b;">#{{ loop.index }}</td>
+                            <td style="font-weight: 700; color: #111;">{{ name }}</td>
+                            <td style="text-align: right; font-weight: 800; color: #ef4444;">Rp {{ "{:,.0f}".format(balance).replace(',', '.') }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not top_inactive_savers %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; padding: 30px; color: #999;">Tidak ada simpanan non-aktif</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -45,55 +87,16 @@
     <div class="recommendation-card" style="background: #6e0b0b; border-radius: 24px; padding: 40px; color: white; box-shadow: 0 10px 30px rgba(110, 11, 11, 0.2);">
         <h3 style="margin: 0 0 30px 0; font-size: 1.2rem; font-weight: 800;">Strategi & Rekomendasi Analytics</h3>
         <div class="rec-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            {% for rec in recommendations %}
             <div class="rec-card" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="background: rgba(255,255,255,0.2); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
-                    <i class="material-icons-round">trending_up</i>
+                    <i class="material-icons-round">{{ rec.icon }}</i>
                 </div>
-                <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 700;">Optimasi Sukarela</h4>
-                <p style="font-size: 0.9rem; opacity: 0.8; line-height: 1.6;">Pertumbuhan Simpanan Sukarela meningkat 15%. Pertimbangkan promo bunga khusus untuk meningkatkan retensi saldo.</p>
+                <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 700;">{{ rec.title }}</h4>
+                <p style="font-size: 0.9rem; opacity: 0.8; line-height: 1.6;">{{ rec.text | safe }}</p>
             </div>
-            <div class="rec-card" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
-                <div style="background: rgba(255,255,255,0.2); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
-                    <i class="material-icons-round">alarm_on</i>
-                </div>
-                <h4 style="margin: 0 0 10px 0; font-size: 1.1rem; font-weight: 700;">Peak Withdrawal Time</h4>
-                <p style="font-size: 0.9rem; opacity: 0.8; line-height: 1.6;">Data menunjukkan penarikan tunai memuncak pada minggu ke-4 setiap bulan. Pastikan cadangan kas memadai.</p>
-            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const ctx = document.getElementById('popularSavingChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Pokok', 'Wajib', 'Sukarela', 'Pendidikan'],
-                datasets: [{
-                    data: [15, 45, 30, 10],
-                    backgroundColor: ['#6e0b0b', '#8b1010', '#10b981', '#f59e0b'],
-                    borderWidth: 0,
-                    hoverOffset: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { 
-                        position: 'right', 
-                        labels: { 
-                            color: '#64748b',
-                            usePointStyle: true,
-                            padding: 20,
-                            font: { size: 12, weight: '600' }
-                        } 
-                    } 
-                },
-                cutout: '70%'
-            }
-        });
-    });
-</script>
 {% endblock %}

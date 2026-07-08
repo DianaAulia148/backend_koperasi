@@ -2,15 +2,30 @@
 
 {% block dashboard_content %}
 <div class="analytics-container">
+    <!-- Data Source Badge and Date Filter -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 5px;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">📊 DATA: REAL DATABASE KOPERASI</span>
+            <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+        </div>
+        <form method="GET" action="{{ url_for('analytics.saving_trend') }}" style="display: flex; gap: 10px; align-items: center; margin: 0; background: white; padding: 6px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+            <span style="font-size: 12px; font-weight: 700; color: #555;">Periode:</span>
+            <input type="date" name="start_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ start_date or '' }}">
+            <span style="color: #888; font-weight: bold;">-</span>
+            <input type="date" name="end_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ end_date or '' }}">
+            <button type="submit" style="background: #6e0b0b; color: white; border: none; padding: 6px 15px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s;">Filter</button>
+        </form>
+    </div>
+
     <!-- Header Metrics -->
     <div class="metrics-grid">
         <div class="glass-card metric-item">
             <div class="metric-info">
                 <span class="metric-label">Total Saldo Simpanan</span>
                 <h2 class="metric-value">Rp {{ "{:,.0f}".format(total_balance).replace(',', '.') }}</h2>
-                <div class="trend-indicator up">
-                    <i class="material-icons-round">trending_up</i>
-                    <span>+{{ growth_pct }}% bln ini</span>
+                <div class="trend-indicator {{ growth_direction }}">
+                    <i class="material-icons-round">{{ 'trending_up' if growth_direction == 'up' else 'trending_down' }}</i>
+                    <span>{{ '+' if growth_direction == 'up' else '-' }}{{ growth_pct }}% bln lalu</span>
                 </div>
             </div>
             <div class="metric-icon" style="background: rgba(110, 11, 11, 0.1); color: var(--primary-red);">
@@ -22,7 +37,7 @@
             <div class="metric-info">
                 <span class="metric-label">Total Transaksi</span>
                 <h2 class="metric-value">{{ total_tx }}</h2>
-                <span class="metric-sublabel">Tahun 2026</span>
+                <span class="metric-sublabel">Semua periode</span>
             </div>
             <div class="metric-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success-green);">
                 <i class="material-icons-round">swap_horiz</i>
@@ -45,9 +60,15 @@
     <div class="charts-grid">
         <div class="glass-card chart-container main-chart">
             <div class="chart-header">
-                <h3>Pertumbuhan Simpanan Bulanan</h3>
-                <div class="chart-actions">
-                    <button class="btn-icon"><i class="material-icons-round">more_vert</i></button>
+                <h3>Simpanan Masuk vs Penarikan</h3>
+                <div class="chart-actions" style="position: relative;">
+                    <button class="btn-icon" id="moreActionsBtn" style="background: none; border: none; cursor: pointer; color: #555; display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 50%;"><i class="material-icons-round">more_vert</i></button>
+                    <!-- Dropdown Menu -->
+                    <div id="moreActionsDropdown" style="display: none; position: absolute; right: 0; top: 35px; background: white; border: 1px solid #eee; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; min-width: 160px; overflow: hidden;">
+                        <a href="javascript:void(0)" onclick="window.print()" style="display: block; padding: 10px 15px; font-size: 13px; color: #333; text-decoration: none; font-weight: 600; transition: background 0.2s; text-align: left;"><i class="material-icons-round" style="font-size: 16px; vertical-align: middle; margin-right: 8px;">print</i> Cetak Laporan</a>
+                        <a href="javascript:void(0)" onclick="location.reload()" style="display: block; padding: 10px 15px; font-size: 13px; color: #333; text-decoration: none; font-weight: 600; transition: background 0.2s; text-align: left; border-top: 1px solid #f5f5f5;"><i class="material-icons-round" style="font-size: 16px; vertical-align: middle; margin-right: 8px;">refresh</i> Segarkan Halaman</a>
+                        <a href="?start_date=&end_date=" style="display: block; padding: 10px 15px; font-size: 13px; color: #6e0b0b; text-decoration: none; font-weight: 600; transition: background 0.2s; text-align: left; border-top: 1px solid #f5f5f5;"><i class="material-icons-round" style="font-size: 16px; vertical-align: middle; margin-right: 8px;">clear</i> Reset Filter</a>
+                    </div>
                 </div>
             </div>
             <div class="chart-body">
@@ -72,14 +93,12 @@
             <h3>Financial Insights</h3>
         </div>
         <div class="insight-list">
+            {% for insight in insights %}
             <div class="insight-item">
-                <div class="insight-icon"><i class="material-icons-round">info</i></div>
-                <div class="insight-text">Simpanan meningkat <strong>{{ growth_pct }}%</strong> dibanding bulan lalu, didorong oleh kenaikan Simpanan Sukarela.</div>
+                <div class="insight-icon"><i class="material-icons-round">{{ 'info' if loop.index == 1 else 'verified' }}</i></div>
+                <div class="insight-text">{{ insight | safe }}</div>
             </div>
-            <div class="insight-item">
-                <div class="insight-icon"><i class="material-icons-round">verified</i></div>
-                <div class="insight-text">Simpanan Wajib tetap mendominasi dengan kontribusi <strong>45%</strong> dari total saldo anggota.</div>
-            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -213,41 +232,171 @@
     }
 </style>
 
+<!-- Hidden elements to pass Jinja data to Javascript safely without linter errors -->
+<div id="saving-trend-data"
+     data-months='{{ months | tojson }}'
+     data-deposit='{{ deposit_data | tojson }}'
+     data-withdrawal='{{ withdrawal_data | tojson }}'
+     data-dist-labels='{{ distribution | map(attribute="name") | list | tojson }}'
+     data-dist-values='{{ distribution | map(attribute="value") | list | tojson }}'
+     data-use-daily='{{ "true" if use_daily else "false" }}'
+     style="display:none;"></div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Saving Trend Chart
+        const dataEl = document.getElementById('saving-trend-data');
+        const months = JSON.parse(dataEl.getAttribute('data-months') || '[]');
+        const depositData = JSON.parse(dataEl.getAttribute('data-deposit') || '[]');
+        const withdrawalData = JSON.parse(dataEl.getAttribute('data-withdrawal') || '[]');
+        const distLabels = JSON.parse(dataEl.getAttribute('data-dist-labels') || '[]');
+        const distValues = JSON.parse(dataEl.getAttribute('data-dist-values') || '[]');
+        const useDaily = dataEl.getAttribute('data-use-daily') === 'true';
+
+        // Saving Trend Chart — Dual Line: Deposits + Withdrawals
         const trendCtx = document.getElementById('savingTrendChart').getContext('2d');
+
+        // Formatter: konversi nilai Ribu Rp → string human-readable
+        function formatRibuRp(val) {
+            if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.', ',') + ' M';
+            if (val >= 1000)    return (val / 1000).toFixed(1).replace('.', ',') + ' jt';
+            if (val >= 1)       return val.toLocaleString('id-ID') + ' rb';
+            return '0';
+        }
+
+        const STEP_RIBU = 50; // 50 ribu = Rp 50.000
+
+        // Hitung step size Y (kiri - Simpanan Masuk) berkelipatan Rp 50.000 secara dinamis
+        const maxDep = depositData.length > 0 ? Math.max(...depositData) : 1000;
+        const stepSizeY = Math.max(STEP_RIBU, Math.round(maxDep / 8 / STEP_RIBU) * STEP_RIBU);
+        const yMax = Math.ceil(maxDep / stepSizeY) * stepSizeY + stepSizeY;
+
+        // Hitung step size Y1 (kanan - Penarikan) berkelipatan Rp 50.000 secara dinamis
+        const maxWd = withdrawalData.length > 0 ? Math.max(...withdrawalData) : 1000;
+        const stepSizeY1 = Math.max(STEP_RIBU, Math.round(maxWd / 8 / STEP_RIBU) * STEP_RIBU);
+        const y1Max = Math.ceil(maxWd / stepSizeY1) * stepSizeY1 + stepSizeY1;
+
+        // X-axis: jika per-hari dan label banyak, tampilkan setiap N label agar tidak tumpang tindih
+        const totalLabels = months.length;
+        let xTickMaxItems = totalLabels; // default tampil semua
+        if (useDaily && totalLabels > 31) xTickMaxItems = Math.ceil(totalLabels / 7); // tiap ~7 hari
+        else if (useDaily && totalLabels > 14) xTickMaxItems = Math.ceil(totalLabels / 3);
+
         new Chart(trendCtx, {
             type: 'line',
             data: {
-                labels: {{ months | tojson }},
-                datasets: [{
-                    label: 'Total Simpanan (Juta Rp)',
-                    data: {{ trend_data | tojson }},
-                    borderColor: '#6e0b0b',
-                    backgroundColor: 'rgba(110, 11, 11, 0.1)',
-                    fill: true,
-                    tension: 0.4,
-                    borderWidth: 3,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#6e0b0b'
-                }]
+                labels: months,
+                datasets: [
+                    {
+                        label: 'Simpanan Masuk (Ribu Rp)',
+                        data: depositData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: useDaily ? 2 : 4,
+                        pointBackgroundColor: '#10b981',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Penarikan (Ribu Rp)',
+                        data: withdrawalData,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointRadius: useDaily ? 2 : 4,
+                        pointBackgroundColor: '#ef4444',
+                        borderDash: [5, 5],
+                        yAxisID: 'y1'
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { 
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#94a3b8', usePointStyle: true, padding: 15 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const ribu = ctx.parsed.y;
+                                const rp = ribu * 1000;
+                                return ctx.dataset.label.split('(')[0].trim() + ': Rp ' + rp.toLocaleString('id-ID');
+                            }
+                        }
+                    }
                 },
                 scales: {
                     y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
                         beginAtZero: true,
+                        min: 0,
+                        max: yMax,
                         grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { color: '#94a3b8' }
+                        ticks: {
+                            color: '#94a3b8',
+                            stepSize: stepSizeY,
+                            callback: function(val) {
+                                return formatRibuRp(val);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Simpanan Masuk',
+                            color: '#94a3b8',
+                            font: { size: 11, weight: 'bold' }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        min: 0,
+                        max: y1Max,
+                        grid: { drawOnChartArea: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            stepSize: stepSizeY1,
+                            callback: function(val) {
+                                return formatRibuRp(val);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Penarikan',
+                            color: '#94a3b8',
+                            font: { size: 11, weight: 'bold' }
+                        }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: '#94a3b8' }
+                        ticks: {
+                            color: '#94a3b8',
+                            maxTicksLimit: useDaily ? Math.min(totalLabels, 32) : totalLabels,
+                            maxRotation: useDaily ? 45 : 0,
+                            autoSkip: true,
+                            autoSkipPadding: useDaily ? 10 : 5,
+                            callback: function(value, index) {
+                                // Default (bulan): tampil semua
+                                // Filter harian dengan banyak titik: tampil tiap beberapa hari
+                                if (useDaily && totalLabels > 31) {
+                                    return index % 7 === 0 ? months[index] : '';
+                                }
+                                if (useDaily && totalLabels > 14) {
+                                    return index % 3 === 0 ? months[index] : '';
+                                }
+                                return months[index];
+                            }
+                        }
                     }
                 }
             }
@@ -258,10 +407,10 @@
         new Chart(distCtx, {
             type: 'doughnut',
             data: {
-                labels: {{ distribution | map(attribute='name') | list | tojson }},
+                labels: distLabels,
                 datasets: [{
-                    data: {{ distribution | map(attribute='value') | list | tojson }},
-                    backgroundColor: ['#6e0b0b', '#8b1010', '#10b981', '#f59e0b'],
+                    data: distValues,
+                    backgroundColor: ['#6e0b0b', '#8b1010', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'],
                     borderWidth: 0,
                     hoverOffset: 15
                 }]
@@ -282,6 +431,19 @@
                 cutout: '70%'
             }
         });
+
+        // 3-dot dropdown toggle logic
+        const moreBtn = document.getElementById('moreActionsBtn');
+        const dropdown = document.getElementById('moreActionsDropdown');
+        if (moreBtn && dropdown) {
+            moreBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            });
+            document.addEventListener('click', function() {
+                dropdown.style.display = 'none';
+            });
+        }
     });
 </script>
 {% endblock %}

@@ -17,7 +17,7 @@ def registration():
     status_filter = request.args.get('status', '')
     duplicate_filter = request.args.get('duplicate', '')
     
-    # Base query for master queue
+    # Base query for master queue (hide APPROVED as they go to Members table)
     query = MemberRegistration.query
     
     # Apply filters
@@ -29,6 +29,10 @@ def registration():
         )
     if status_filter:
         query = query.filter_by(approval_status=status_filter)
+    else:
+        # Default: only show PENDING in the main queue
+        query = query.filter(MemberRegistration.approval_status == 'PENDING')
+
     if duplicate_filter:
         if duplicate_filter == 'CLEAN':
             query = query.filter_by(duplicate_check_status='CLEAN')
@@ -53,18 +57,8 @@ def registration():
     
     # Analytics Cards Data
     pending_count = MemberRegistration.query.filter_by(approval_status='PENDING').count()
-    low_confidence_count = MemberRegistration.query.filter(
-        MemberRegistration.approval_status == 'PENDING',
-        MemberRegistration.ocr_confidence < 0.75
-    ).count()
-    duplicate_count = MemberRegistration.query.filter(
-        MemberRegistration.approval_status == 'PENDING',
-        MemberRegistration.duplicate_check_status != 'CLEAN'
-    ).count()
-    approved_today_count = MemberRegistration.query.filter(
-        MemberRegistration.approval_status == 'APPROVED',
-        func.date(MemberRegistration.approved_at) == datetime.now().date()
-    ).count()
+    rejected_count = MemberRegistration.query.filter_by(approval_status='REJECTED').count()
+    approved_count = MemberRegistration.query.filter_by(approval_status='APPROVED').count()
 
     return render_template('onboarding/registration.html',
                            current_user=current_user,
@@ -74,9 +68,8 @@ def registration():
                            status_filter=status_filter,
                            duplicate_filter=duplicate_filter,
                            pending_count=pending_count,
-                           low_confidence_count=low_confidence_count,
-                           duplicate_count=duplicate_count,
-                           approved_today_count=approved_today_count,
+                           rejected_count=rejected_count,
+                           approved_count=approved_count,
                            active_menu='registration',
                            page_title='Antrean Pendaftaran')
 
@@ -148,7 +141,7 @@ def registration_detail(reg_id):
                 
                 # Add a timeline event
                 timeline_event = RegistrationTimeline(
-                    registration_id=reg.id,
+                    member_registration_id=reg.id,
                     status='MANUAL_REVIEW',
                     notes=f"Data diedit manual oleh Pengurus: {', '.join(changes_made)}",
                     created_by=current_user.id
@@ -164,8 +157,18 @@ def registration_detail(reg_id):
     documents = MemberDocument.query.filter_by(member_registration_id=reg.id).all()
     doc_dict = {doc.document_type: doc.file_path for doc in documents}
     
-    timeline = RegistrationTimeline.query.filter_by(registration_id=reg.id).order_by(RegistrationTimeline.created_at.desc()).all()
-    ocr_logs = OcrLog.query.filter_by(registration_id=reg.id).order_by(OcrLog.created_at.desc()).all()
+    # Fallback to legacy paths stored in MemberRegistration from mobile API
+    if 'KTP' not in doc_dict and reg.path_ktp:
+        doc_dict['KTP'] = reg.path_ktp
+    if 'KARTU_KARYAWAN' not in doc_dict and reg.path_kartu_karyawan:
+        doc_dict['KARTU_KARYAWAN'] = reg.path_kartu_karyawan
+    if 'PAS_FOTO' not in doc_dict and reg.path_pas_foto:
+        doc_dict['PAS_FOTO'] = reg.path_pas_foto
+    if 'TANDA_TANGAN' not in doc_dict and reg.path_tanda_tangan:
+        doc_dict['TANDA_TANGAN'] = reg.path_tanda_tangan
+    
+    timeline = RegistrationTimeline.query.filter_by(member_registration_id=reg.id).order_by(RegistrationTimeline.created_at.desc()).all()
+    ocr_logs = []
     
     # Get duplicates if any
     duplicates = []
@@ -203,7 +206,7 @@ def retry_ocr(reg_id):
     
     # Log timeline event
     timeline_event = RegistrationTimeline(
-        registration_id=reg.id,
+        member_registration_id=reg.id,
         status='OCR_PROCESSED',
         notes=f"OCR Scan diulang (Scan #{reg.ocr_retry_count}). Confidence score: {round(reg.ocr_confidence*100, 1)}%",
         created_by=current_user.id
@@ -241,12 +244,16 @@ def approve_registration(reg_id):
     # Generate Member Number (Simple example)
     member_no = f"M-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     
+    from routes.auth_routes import parse_ocr_date
+    birth_date_val = parse_ocr_date(reg.ocr_birth_date)
+    
     new_member = Member(
         member_no=member_no,
         nik=reg.ocr_nik,
         nip=reg.ocr_nip,
         full_name=reg.ocr_name,
         jabatan=reg.ocr_jabatan,
+        birth_date=birth_date_val,
         gender=reg.ocr_gender,
         phone=reg.phone,
         email=email,
@@ -254,13 +261,15 @@ def approve_registration(reg_id):
         mobile_user_id=reg.mobile_user_id,
         status="AKTIF",
         pas_foto=reg.path_pas_foto,
-        signature_path=reg.path_tanda_tangan
+        signature_path=reg.path_tanda_tangan,
+        bank_name=reg.bank_name,
+        bank_account_number=reg.bank_account_number
     )
     db.session.add(new_member)
     db.session.flush() # Get new_member ID
     
     # Initialize basic saving balances for the new member
-    from models.user_model import SavingType, MemberSavingBalance
+    from models.user_model import SavingType, MemberSavingBalance, DepositRequest
     saving_types = SavingType.query.all()
     for st in saving_types:
         balance = MemberSavingBalance(
@@ -269,6 +278,19 @@ def approve_registration(reg_id):
             balance=0
         )
         db.session.add(balance)
+        
+        # Buat tagihan setoran otomatis (PENDING) jika tipe simpanan sama dengan form registrasi
+        if getattr(reg, 'savings_amount', None) and getattr(reg, 'savings_amount') > 0 and st.name == getattr(reg, 'savings_type', ''):
+            initial_deposit = DepositRequest(
+                member_id=new_member.id,
+                saving_type_id=st.id,
+                amount=reg.savings_amount,
+                source_bank=getattr(reg, 'bank_name', None),
+                source_account_no=getattr(reg, 'bank_account_number', None),
+                source_account_name=getattr(reg, 'ocr_name', None),
+                approval_status='PENDING'
+            )
+            db.session.add(initial_deposit)
 
     # Update mobile user status
     if mobile_user:
@@ -276,7 +298,7 @@ def approve_registration(reg_id):
         
     # Log Timeline
     timeline = RegistrationTimeline(
-        registration_id=reg.id,
+        member_registration_id=reg.id,
         status='APPROVED',
         notes=f'Pendaftaran disetujui. Member No: {member_no}',
         created_by=session.get('user_id')
@@ -304,7 +326,7 @@ def reject_registration(reg_id):
     
     # Log Timeline
     timeline = RegistrationTimeline(
-        registration_id=reg.id,
+        member_registration_id=reg.id,
         status='REJECTED',
         notes=f'Pendaftaran ditolak. Alasan: {reason}',
         created_by=session['user_id']
@@ -316,3 +338,148 @@ def reject_registration(reg_id):
     
     flash(f"Pendaftaran ditolak: {reason}", "warning")
     return redirect(url_for('onboarding.registration_detail', reg_id=reg.id))
+
+from models.user_model import ResignationRequest
+
+@onboarding_bp.route('/resignations')
+def resignations():
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
+    
+    current_user = User.query.get(session['user_id'])
+    status_filter = request.args.get('status', 'PENDING')
+    
+    query = ResignationRequest.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+        
+    requests = query.order_by(ResignationRequest.created_at.desc()).all()
+    
+    return render_template('onboarding/resignations.html',
+                           current_user=current_user,
+                           requests=requests,
+                           status_filter=status_filter,
+                           active_menu='resignations',
+                           page_title='Pengajuan Keluar Anggota')
+
+@onboarding_bp.route('/resignations/<int:req_id>/approve', methods=['POST'])
+def approve_resignation(req_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+    req = ResignationRequest.query.get_or_404(req_id)
+    if req.status != 'PENDING':
+        return jsonify({'success': False, 'message': 'Hanya pengajuan PENDING yang dapat disetujui'}), 400
+        
+    transfer_proof = request.files.get('transfer_proof')
+    if not transfer_proof:
+        return jsonify({'success': False, 'message': 'Bukti transfer sisa simpanan wajib diunggah'}), 400
+        
+    # Save proof (simplified)
+    import os
+    proof_path = os.path.join('uploads', f'proof_{req_id}_{transfer_proof.filename}')
+    transfer_proof.save(proof_path)
+    
+    req.status = 'APPROVED'
+    req.transfer_proof = proof_path
+    req.approved_by = session['user_id']
+    req.approved_at = datetime.utcnow()
+    
+    # Generate Form Mengundurkan Diri DOCX
+    import os
+    import docx
+    try:
+        template_path = os.path.join('templates', 'docs', 'Form-Mengundurkan-Diri-Template.docx')
+        doc = docx.Document(template_path)
+        
+        replacements = {
+            'N a m a\t:': f'N a m a\t: {req.member.full_name if req.member else ""}',
+            'N IPY\t:': f'N IPY\t: {req.nipy}',
+            'No. Anggota Koperasi\t:': f'No. Anggota Koperasi\t: {req.member.member_no if req.member else ""}',
+            'Jabatan / Departemen\t:': f'Jabatan / Departemen\t: {req.jabatan}',
+            'Lokasi Kerja / Site\t:': f'Lokasi Kerja / Site\t: {req.lokasi_kerja}',
+            'mulai bulan  .......................': f'mulai bulan {req.effective_month}',
+            'Bank :\n\t........': f'Bank : {req.bank_name}',
+            'Nomor Rekening :': f'Nomor Rekening : {req.bank_account_number}',
+            'Atas nama\t:': f'Atas nama\t: {req.bank_account_name}',
+        }
+        
+        # simple replacement logic
+        for p in doc.paragraphs:
+            for key, val in replacements.items():
+                if key in p.text:
+                    p.text = p.text.replace(key, val)
+                    
+        # generate filename
+        member_no = req.member.member_no if req.member else str(req.id)
+        out_filename = f'Form_Resign_{member_no}.docx'
+        out_path = os.path.join('uploads', out_filename)
+        doc.save(out_path)
+        req.document_url = f'/api/membership/resign/document/{out_filename}'
+    except Exception as e:
+        print("Error generating docx:", str(e))
+        pass # If fails, just continue
+        
+    db.session.commit()
+    
+    # Activity Log
+    ActivityLog.log(f"Resignation approved for {req.member.full_name if req.member else 'Unknown'}", user_id=session['user_id'], table_name="resignation_requests", reference_id=req.id)
+    
+    if req.member:
+        from models.user_model import Notification
+        notif = Notification(
+            member_id=req.member.id,
+            title="Pengajuan Keluar Anggota Disetujui",
+            message="Pengajuan pengunduran diri Anda telah disetujui oleh pengurus. Silakan cek status keanggotaan Anda.",
+            notification_type="SYSTEM",
+            is_read=False
+        )
+        db.session.add(notif)
+        db.session.commit()
+    
+
+    return jsonify({'success': True, 'message': 'Pengajuan berhasil disetujui.'})
+
+@onboarding_bp.route('/resignations/<int:req_id>/reject', methods=['POST'])
+def reject_resignation(req_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+    req = ResignationRequest.query.get_or_404(req_id)
+    if req.status != 'PENDING':
+        return jsonify({'success': False, 'message': 'Hanya pengajuan PENDING yang dapat ditolak'}), 400
+    data = request.get_json(silent=True) or request.form
+    reason = data.get('reason', 'Tidak ada alasan yang diberikan.')
+        
+    req.status = 'REJECTED'
+    req.approved_by = session['user_id']
+    req.approved_at = datetime.utcnow()
+    # If the model has rejection_reason we could save it, otherwise just in log.
+    
+    db.session.commit()
+    
+    # Notify user via Notification if mobile_user_id can be found
+    if req.member:
+        mobile_user_id = None
+        from models.user_model import MemberRegistration
+        reg = MemberRegistration.query.filter_by(ocr_nik=req.member.nik).first()
+        if not reg:
+            reg = MemberRegistration.query.filter_by(ocr_nip=req.member.nip).first()
+        if reg:
+            mobile_user_id = reg.mobile_user_id
+            
+        if req.member:
+            from models.user_model import Notification
+            notif = Notification(
+                member_id=req.member.id,
+                title="Pengajuan Pengunduran Diri Ditolak",
+                message=f"Pengajuan pengunduran diri Anda telah ditolak. Alasan: {reason}",
+                notification_type="SYSTEM",
+                is_read=False
+            )
+            db.session.add(notif)
+            db.session.commit()
+    
+    ActivityLog.log(f"Resignation rejected for {req.member.full_name if req.member else 'Unknown'}", user_id=session['user_id'], table_name="resignation_requests", reference_id=req.id)
+    
+    return jsonify({'success': True, 'message': 'Pengajuan berhasil ditolak.'})

@@ -32,6 +32,40 @@ def get_mongo_db():
         logging.error(f"[MongoDB] Connection failed: {e}")
         return None
 
+def get_scrape_metadata():
+    """Fetch scraping metadata (last_scraped_at, status) for all sources."""
+    db = get_mongo_db()
+    if db is None:
+        return {}
+    try:
+        col = db["scrape_metadata"]
+        result = {}
+        for doc in col.find({}, {"_id": 0}):
+            source = doc.get("source", "unknown")
+            result[source] = {
+                "last_scraped_at": doc.get("last_scraped_at"),
+                "status": doc.get("status", "UNKNOWN"),
+                "duration_seconds": doc.get("duration_seconds", 0),
+                "scheduler_type": doc.get("scheduler_type", ""),
+                "schedule_config": doc.get("schedule_config", "")
+            }
+        return result
+    except Exception as e:
+        logging.error(f"[MongoDB] Failed to fetch scrape metadata: {e}")
+        return {}
+
+def _clean_numeric(value, default=0.0):
+    """Cleaning helper: safely parse numeric values, stripping common artifacts."""
+    if value is None:
+        return default
+    try:
+        cleaned = str(value).replace(",", "").replace("%", "").replace(" ", "").strip()
+        if not cleaned or cleaned == "-":
+            return default
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return default
+
 def parse_indonesian_date(date_str):
     """Attempt to parse various date formats into datetime object for MongoDB filtering."""
     try:
@@ -49,10 +83,18 @@ def apply_date_filter(query, start_date=None, end_date=None):
     if start_date or end_date:
         query["tanggal_dt"] = {}
         if start_date:
-            try: query["tanggal_dt"]["$gte"] = parser.parse(start_date)
+            try:
+                if isinstance(start_date, datetime):
+                    query["tanggal_dt"]["$gte"] = start_date
+                else:
+                    query["tanggal_dt"]["$gte"] = parser.parse(str(start_date))
             except: pass
         if end_date:
-            try: query["tanggal_dt"]["$lte"] = parser.parse(end_date)
+            try:
+                if isinstance(end_date, datetime):
+                    query["tanggal_dt"]["$lte"] = end_date
+                else:
+                    query["tanggal_dt"]["$lte"] = parser.parse(str(end_date))
             except: pass
         if not query["tanggal_dt"]:
             del query["tanggal_dt"]
@@ -67,8 +109,9 @@ def fetch_latest_food_prices(start_date=None, end_date=None):
     if db is None: return []
     col = db["harga_pangan"]
 
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    if col.count_documents({"diambil_pada": {"$gte": today_start}}) == 0:
+    # Only trigger initial scrape if database is completely empty.
+    # Otherwise, rely on Background Scheduler to scrape asynchronously in the background.
+    if col.count_documents({}) == 0:
         _scrape_bi_food_prices(col)
 
     query = {"level": 1}
@@ -126,8 +169,9 @@ def fetch_inflasi(start_date=None, end_date=None):
     if db is None: return []
     col = db["inflasi"]
     
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    if col.count_documents({"diambil_pada": {"$gte": today_start}}) == 0:
+    # Only trigger initial scrape if database is completely empty.
+    # Otherwise, rely on Background Scheduler to scrape asynchronously in the background.
+    if col.count_documents({}) == 0:
         _scrape_inflasi(col)
         
     query = apply_date_filter({}, start_date, end_date)
@@ -176,8 +220,9 @@ def fetch_bi_rate(start_date=None, end_date=None):
     if db is None: return []
     col = db["bi_rate"]
     
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    if col.count_documents({"diambil_pada": {"$gte": today_start}}) == 0:
+    # Only trigger initial scrape if database is completely empty.
+    # Otherwise, rely on Background Scheduler to scrape asynchronously in the background.
+    if col.count_documents({}) == 0:
         _scrape_bi_rate(col)
         
     query = apply_date_filter({}, start_date, end_date)
@@ -226,8 +271,9 @@ def fetch_jisdor(start_date=None, end_date=None):
     if db is None: return []
     col = db["jisdor"]
     
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    if col.count_documents({"diambil_pada": {"$gte": today_start}}) == 0:
+    # Only trigger initial scrape if database is completely empty.
+    # Otherwise, rely on Background Scheduler to scrape asynchronously in the background.
+    if col.count_documents({}) == 0:
         _scrape_jisdor(col)
         
     query = apply_date_filter({}, start_date, end_date)

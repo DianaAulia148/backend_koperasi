@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Ekspor Simpanan - {{ member.full_name }}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: white; color: #111; padding: 30px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #6e0b0b; padding-bottom: 18px; }
+  .header-left h1 { font-size: 20px; font-weight: 800; color: #6e0b0b; }
+  .header-left .sub { font-size: 13px; font-weight: 700; color: #333; margin-top: 6px; }
+  .header-left .meta { font-size: 11px; color: #777; margin-top: 3px; }
+  .header-right { text-align: right; font-size: 11px; color: #555; }
+  .header-right strong { display: block; font-size: 13px; color: #333; }
+  .badge { display: inline-block; font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 20px; background: #e8f8f0; color: #27ae60; margin-left: 6px; vertical-align: middle; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+  thead tr { background: #6e0b0b; color: white; }
+  thead th { padding: 12px 10px; text-align: left; font-weight: 700; }
+  tbody tr:nth-child(even) { background: #fff5f5; }
+  tbody td { padding: 14px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  .balance-cell { font-weight: 800; color: #27ae60; font-size: 14px; }
+  .bank-cell { font-weight: 700; color: #333; }
+  .acc-cell { font-family: monospace; font-size: 11px; color: #555; }
+  .footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
+  @media print {
+    body { padding: 10px; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>💳 Data Simpanan Anggota</h1>
+      <div class="sub">
+        {{ member.full_name }}
+        <span class="badge">{{ member.status }}</span>
+      </div>
+      <div class="meta">No. Anggota: <strong style="color:#6e0b0b;">{{ member.member_no }}</strong>
+        &nbsp;|&nbsp; Bergabung: {{ member.date_joined.strftime('%d %b %Y') if member.date_joined else '-' }}
+      </div>
+    </div>
+    <div class="header-right">
+      <strong>Tanggal Ekspor</strong>
+      {{ export_date }}
+    </div>
+  </div>
+
+  {% if balance_rows %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30px;">NO</th>
+        <th>JENIS SIMPANAN</th>
+        <th style="text-align:right;">SALDO AKTIF</th>
+        <th>BANK PENGIRIM</th>
+        <th>NO. REKENING</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set total_saldo = namespace(value=0) %}
+      {% for row in balance_rows %}
+      {% set _ = total_saldo.__setattr__('value', total_saldo.value + row['Saldo']) %}
+      <tr>
+        <td style="text-align:center; font-weight:800; color:#6e0b0b;">{{ loop.index }}</td>
+        <td style="font-weight:800; font-size:13px;">{{ row['Jenis Simpanan'] }}</td>
+        <td style="text-align:right;" class="balance-cell">Rp {{ "{:,.0f}".format(row['Saldo']).replace(',', '.') }}</td>
+        <td class="bank-cell">{{ row['Bank'] }}</td>
+        <td class="acc-cell">{{ row['No. Rekening'] }}</td>
+      </tr>
+      {% endfor %}
+      <tr style="background:#6e0b0b; color:white;">
+        <td colspan="2" style="padding:12px 10px; font-weight:800; font-size:13px;">TOTAL SALDO AKTIF</td>
+        <td style="text-align:right; font-weight:800; font-size:15px; padding:12px 10px;">Rp {{ "{:,.0f}".format(total_saldo.value).replace(',', '.') }}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align:center; padding:50px; color:#aaa; font-size:14px;">
+    Belum ada data simpanan untuk anggota ini.
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    <span>Total Jenis Simpanan: <strong>{{ balance_rows|length }}</strong></span>
+    <span>Dicetak oleh sistem koperasi — {{ export_date }}</span>
+  </div>
+
+  <script>
+    window.onload = function() { window.print(); };
+    window.onafterprint = function() { window.close(); };
+  </script>
+</body>
+</html>

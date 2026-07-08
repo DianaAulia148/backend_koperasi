@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, session, send_file, jsonify
 from models.user_model import db, User, MemberSavingBalance, SavingTransaction, PayrollBatch, WithdrawalRequest
-from sqlalchemy import func
+from sqlalchemy import func, case
 from datetime import datetime, timedelta
 import io
 import pandas as pd
@@ -18,61 +18,140 @@ def finance_dashboard():
         
     current_user = User.query.get(session['user_id'])
     
+    # Get filter parameters
+    period = request.args.get('period', '')
+    category = request.args.get('category', '')
+    withdrawals_only = request.args.get('withdrawals_only', '') in ['1', 'true', 'yes', 'on']
+
+    # Monthly period filter
+    if not period:
+        period_dt = datetime.now().replace(day=1)
+        period = period_dt.strftime('%Y-%m')
+    else:
+        try:
+            period_dt = datetime.strptime(period, '%Y-%m')
+        except:
+            period_dt = datetime.now().replace(day=1)
+            period = period_dt.strftime('%Y-%m')
+
+    start_dt = period_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period_dt.month == 12:
+        next_month = period_dt.replace(year=period_dt.year + 1, month=1, day=1)
+    else:
+        next_month = period_dt.replace(month=period_dt.month + 1, day=1)
+    end_dt = next_month - timedelta(seconds=1)
+
+    start_date = start_dt.strftime('%Y-%m-%d')
+    end_date = end_dt.strftime('%Y-%m-%d')
+
     # Summary Cards
     total_balance = db.session.query(func.sum(MemberSavingBalance.balance)).scalar() or 0
-    total_payroll = db.session.query(func.sum(PayrollBatch.total_amount)).scalar() or 0
-    total_withdrawal = db.session.query(func.sum(WithdrawalRequest.amount)).filter(WithdrawalRequest.approval_status == 'APPROVED').scalar() or 0
-    total_transactions = db.session.query(func.count(SavingTransaction.id)).scalar() or 0
-    
-    # Get filter parameters
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
-    category = request.args.get('category', '')
-    
-    # Default to current month if no dates provided
-    if not start_date and not end_date:
-        today = datetime.now()
-        start_date = today.replace(day=1).strftime('%Y-%m-%d')
-        end_date = today.strftime('%Y-%m-%d')
-    
-    # Fetch all saving types for dynamic columns and filter
-    from models.user_model import SavingType, Member
-    saving_types = SavingType.query.all()
-    
-    # Base query for transactions
-    tx_query = SavingTransaction.query.order_by(SavingTransaction.transaction_date.desc())
-    
-    from datetime import datetime as dt_class, time
 
-    if start_date:
-        try:
-            start_dt = dt_class.strptime(start_date, '%Y-%m-%d')
-            tx_query = tx_query.filter(SavingTransaction.transaction_date >= start_dt)
-        except: pass
-    if end_date:
-        try:
-            end_dt = dt_class.strptime(end_date, '%Y-%m-%d')
-            end_dt = dt_class.combine(end_dt, time(23, 59, 59))
-            tx_query = tx_query.filter(SavingTransaction.transaction_date <= end_dt)
-        except: pass
-            
+    base_tx_filters = [
+        SavingTransaction.deleted_at.is_(None),
+        SavingTransaction.transaction_status == 'SUCCESS',
+        SavingTransaction.transaction_date >= start_dt,
+        SavingTransaction.transaction_date <= end_dt
+    ]
+
     if category and category != 'SEMUA':
         try:
             cat_id = int(category)
-            tx_query = tx_query.filter_by(saving_type_id=cat_id)
-        except: pass
-            
-    # Use a join to fetch member names efficiently and increase limit
-    recent_tx = tx_query.join(Member, SavingTransaction.member_id == Member.id)\
-                        .with_entities(SavingTransaction, Member.full_name)\
-                        .limit(1000).all()
-    
-    # Format the data for the template
-    formatted_tx = []
-    for tx, name in recent_tx:
-        tx.member_name = name
-        formatted_tx.append(tx)
-    recent_tx = formatted_tx
+            base_tx_filters.append(SavingTransaction.saving_type_id == cat_id)
+        except ValueError:
+            cat_id = None
+
+    filtered_tx_filters = list(base_tx_filters)
+    if withdrawals_only:
+        filtered_tx_filters.extend([
+            SavingTransaction.transaction_type == 'CREDIT',
+            SavingTransaction.transaction_source == 'WITHDRAWAL'
+        ])
+
+    debit_filters = list(filtered_tx_filters) + [SavingTransaction.transaction_type == 'DEBIT']
+    credit_filters = list(filtered_tx_filters) + [SavingTransaction.transaction_type == 'CREDIT']
+
+    payroll_batch_filters = [
+        PayrollBatch.deleted_at.is_(None),
+        PayrollBatch.uploaded_at >= start_dt,
+        PayrollBatch.uploaded_at <= end_dt
+    ]
+
+    total_payroll = db.session.query(func.sum(PayrollBatch.total_amount)).filter(
+        *payroll_batch_filters
+    ).scalar() or 0
+    total_withdrawal = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        *filtered_tx_filters,
+        SavingTransaction.transaction_type == 'CREDIT',
+        SavingTransaction.transaction_source == 'WITHDRAWAL'
+    ).scalar() or 0
+    total_pemasukan = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        *debit_filters
+    ).scalar() or 0
+    total_pengeluaran = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        *credit_filters
+    ).scalar() or 0
+
+    # Fetch all saving types for dynamic columns
+    from models.user_model import SavingType, Member
+    saving_types = SavingType.query.all()
+
+    # Load member balances and monthly transactions
+    search_query = request.args.get('search', '').strip()
+    members_query = Member.query.filter(Member.deleted_at.is_(None))
+    if search_query:
+        members_query = members_query.filter(Member.full_name.ilike(f'%{search_query}%'))
+    members = members_query.order_by(Member.full_name.asc()).all()
+    member_ids = [m.id for m in members]
+
+    balance_by_member = {}
+    if member_ids:
+        balances = MemberSavingBalance.query.filter(MemberSavingBalance.member_id.in_(member_ids)).all()
+        for b in balances:
+            balance_by_member.setdefault(b.member_id, {})[b.saving_type_id] = float(b.balance)
+
+    tx_filters = list(base_tx_filters)
+    if withdrawals_only:
+        tx_filters.extend([
+            SavingTransaction.transaction_type == 'CREDIT',
+            SavingTransaction.transaction_source == 'WITHDRAWAL'
+        ])
+
+    monthly_tx = db.session.query(
+        SavingTransaction.member_id,
+        SavingTransaction.transaction_type,
+        func.sum(SavingTransaction.amount)
+    ).filter(*tx_filters).group_by(
+        SavingTransaction.member_id,
+        SavingTransaction.transaction_type
+    ).all()
+
+    monthly_by_member = {}
+    for member_id, tx_type, amount in monthly_tx:
+        monthly_by_member.setdefault(member_id, {'DEBIT': 0, 'CREDIT': 0})
+        monthly_by_member[member_id][tx_type] = float(amount or 0)
+
+    report_rows = []
+    for m in members:
+        balances = balance_by_member.get(m.id, {})
+        report_rows.append({
+            'member': m,
+            'balances': balances,
+            'total_balance': sum(balances.values()),
+            'pemasukan': monthly_by_member.get(m.id, {}).get('DEBIT', 0),
+            'pengeluaran': monthly_by_member.get(m.id, {}).get('CREDIT', 0)
+        })
+
+    total_transactions = db.session.query(func.count(SavingTransaction.id)).filter(*tx_filters).scalar() or 0
+
+    full_type_totals = {str(st.id): 0 for st in saving_types}
+    for row in report_rows:
+        for st_id, amount in row['balances'].items():
+            full_type_totals[str(st_id)] = full_type_totals.get(str(st_id), 0) + amount
+
+    full_pemasukan = total_pemasukan
+    full_pengeluaran = total_pengeluaran
+    recent_tx = report_rows
     
     # Actual Insights Calculation
     insights = []
@@ -121,10 +200,16 @@ def finance_dashboard():
                            total_payroll=total_payroll,
                            total_withdrawal=total_withdrawal,
                            total_transactions=total_transactions,
+                           full_pemasukan=float(full_pemasukan),
+                           full_pengeluaran=float(full_pengeluaran),
+                           full_type_totals=full_type_totals,
                            recent_tx=recent_tx,
                            start_date=start_date,
                            end_date=end_date,
+                           period=period,
                            category=category,
+                           withdrawals_only=withdrawals_only,
+                           search_query=search_query,
                            saving_types=saving_types,
                            insights=insights,
                            active_menu='finance_reports',
@@ -134,9 +219,16 @@ def export_transactions_pdf():
     """Generate a single‑page PDF summarising totals and recent transactions (max 20)."""
     total_balance = db.session.query(func.sum(MemberSavingBalance.balance)).scalar() or 0
     total_payroll = db.session.query(func.sum(PayrollBatch.total_amount)).scalar() or 0
-    total_withdrawal = db.session.query(func.sum(WithdrawalRequest.amount)).filter(WithdrawalRequest.approval_status == 'APPROVED').scalar() or 0
-    total_transactions = db.session.query(func.count(SavingTransaction.id)).scalar() or 0
-    recent_tx = SavingTransaction.query.order_by(SavingTransaction.transaction_date.desc()).limit(20).all()
+    total_withdrawal = db.session.query(func.sum(SavingTransaction.amount)).filter(
+        SavingTransaction.transaction_type == 'CREDIT',
+        SavingTransaction.transaction_source == 'WITHDRAWAL',
+        SavingTransaction.transaction_status == 'SUCCESS',
+        SavingTransaction.deleted_at.is_(None)
+    ).scalar() or 0
+    total_transactions = db.session.query(func.count(SavingTransaction.id)).filter(
+        SavingTransaction.deleted_at.is_(None)
+    ).scalar() or 0
+    recent_tx = SavingTransaction.query.filter(SavingTransaction.deleted_at.is_(None)).order_by(SavingTransaction.transaction_date.desc()).limit(20).all()
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
@@ -186,7 +278,7 @@ def export_transactions_pdf():
 @report_bp.route('/export/transactions/excel')
 def export_transactions_excel():
     """Export recent transactions to an Excel file (up to 1000 rows)."""
-    recent_tx = SavingTransaction.query.order_by(SavingTransaction.transaction_date.desc()).limit(1000).all()
+    recent_tx = SavingTransaction.query.filter(SavingTransaction.deleted_at.is_(None)).order_by(SavingTransaction.transaction_date.desc()).limit(1000).all()
     rows = []
     for tx in recent_tx:
         rows.append({
@@ -203,3 +295,30 @@ def export_transactions_excel():
         df.to_excel(writer, index=False, sheet_name='Transaksi')
     output.seek(0)
     return send_file(output, as_attachment=True, download_name='transaksi.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+@report_bp.route('/reports/finance/reset', methods=['POST'])
+def reset_financial_data():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+        
+    try:
+        from models.user_model import SavingTransaction, PayrollBatchDetail, PayrollBatch, MemberSavingBalance, WithdrawalRequest
+        
+        # Hapus semua transaksi simpanan
+        db.session.query(SavingTransaction).delete()
+        # Hapus semua batch payroll
+        db.session.query(PayrollBatchDetail).delete()
+        db.session.query(PayrollBatch).delete()
+        # Hapus/reset request penarikan
+        db.session.query(WithdrawalRequest).delete()
+        
+        # Reset saldo anggota menjadi 0
+        db.session.query(MemberSavingBalance).update({MemberSavingBalance.balance: 0.0})
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Database transaksi & saldo berhasil dibersihkan!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+

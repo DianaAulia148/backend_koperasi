@@ -2,6 +2,25 @@
 
 {% block dashboard_content %}
 <div class="analytics-container">
+    <!-- Info Banner Penjadwalan Otomatis (Kriteria UAS Big Data) -->
+    <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 16px; padding: 20px; margin-bottom: 25px; display: flex; gap: 15px; align-items: flex-start; box-shadow: 0 4px 15px rgba(0,0,0,0.01);">
+        <div style="background: #eff6ff; color: #3b82f6; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <i class="material-icons-round" style="font-size: 22px;">schedule</i>
+        </div>
+        <div>
+            <h4 style="margin: 0 0 5px; font-size: 14px; font-weight: 800; color: #1e293b;">Automated Scheduling Data Pipeline (Kriteria Big Data)</h4>
+            <p style="margin: 0; font-size: 12px; color: #64748b; line-height: 1.6;">
+                Seluruh data indikator ekonomi makro di bawah disinkronisasikan secara otomatis menggunakan background service scheduler:
+                <br />
+                • <strong>Daily Schedule (Cron):</strong> Scraping massal ke situs resmi Bank Indonesia dijalankan otomatis setiap hari pada pukul <strong>00:05 WIB</strong>.
+                <br />
+                • <strong>Hourly Schedule (Interval):</strong> Pengecekan interval berkala dijalankan setiap <strong>1 jam sekali</strong> untuk memperbarui data real-time apabila Bank Indonesia merilis rilis pers baru di siang hari.
+                <br />
+                • <strong>On-Demand Sync (Reactive):</strong> Jika jadwal terlewat (misal: server direstart), sistem akan pintar mendeteksi data usang dan langsung <strong>memaksa sinkronisasi</strong> secara diam-diam saat halaman ini dibuka perdana.
+            </p>
+        </div>
+    </div>
+
     <!-- Main Economic Indicator Cards -->
     <div class="overview-grid">
         <!-- Inflasi -->
@@ -69,45 +88,58 @@
         </div>
     </div>
 
-    <!-- Comprehensive Data Table -->
-    <div class="ent-table-container" style="margin-top: 10px; background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
-        <div class="ent-table-header" style="padding: 25px 30px; border-bottom: 1px solid #f3efec; display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Ringkasan Inflasi Terbaru</h3>
-            <span style="font-size:0.8rem; color:#888; font-weight:600;">🔄 Sumber: MongoDB Atlas ← Bank Indonesia</span>
+    <!-- Dynamic 2x2 Economic Charts Grid -->
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:25px; margin-top:20px; margin-bottom:25px;">
+        <!-- Grafik 1: Inflasi -->
+        <div class="glass-card" style="background:white; border-radius:24px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
+            <h4 style="margin:0 0 15px; font-size:14px; font-weight:800; color:#6e0b0b; display:flex; justify-content:space-between; align-items:center;">
+                <span>Tren Inflasi Nasional</span>
+                <span style="font-size:10px; background:#eff6ff; color:#3b82f6; padding:3px 10px; border-radius:10px; font-weight:800;">Line Chart</span>
+            </h4>
+            <div style="height:350px; position:relative;">
+                <canvas id="chartInflasi"></canvas>
+            </div>
         </div>
-        <div class="ent-table-wrapper">
-            <table class="ent-table">
-                <thead>
-                    <tr>
-                        <th>Periode</th>
-                        <th style="text-align: center;">Inflasi (%)</th>
-                        <th style="text-align: center;">BI Rate (%)</th>
-                        <th style="text-align: right;">Kurs JISDOR</th>
-                        <th style="text-align: center;">Sumber</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in all_inflasi[:10] %}
-                    <tr>
-                        <td style="font-weight: 600;">{{ item.periode_str }}</td>
-                        <td style="text-align: center; font-weight: 800; color: #ef4444;">{{ item.inflasi_persen }}%</td>
-                        <td style="text-align: center; font-weight: 800; color: #2563eb;">
-                            {% if all_birate %}{{ all_birate[loop.index0].bi_rate_persen if loop.index0 < all_birate|length else '—' }}%{% else %}—{% endif %}
-                        </td>
-                        <td style="text-align: right; font-weight: 800; color: #10b981;">
-                            {% if all_jisdor and loop.index0 < all_jisdor|length %}
-                                Rp {{ "{:,.0f}".format(all_jisdor[loop.index0].kurs_jisdor).replace(',', '.') }}
-                            {% else %}—{% endif %}
-                        </td>
-                        <td style="text-align: center;"><span style="font-size:11px; background:#f3f3f3; padding:4px 10px; border-radius:6px; font-weight:700;">{{ item.sumber }}</span></td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="5" style="text-align:center; padding:60px; color:#999;">Memuat data dari Bank Indonesia...</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+        <!-- Grafik 2: BI Rate -->
+        <div class="glass-card" style="background:white; border-radius:24px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
+            <h4 style="margin:0 0 15px; font-size:14px; font-weight:800; color:#6e0b0b; display:flex; justify-content:space-between; align-items:center;">
+                <span>Tren BI 7-Day Repo Rate</span>
+                <span style="font-size:10px; background:#eff6ff; color:#3b82f6; padding:3px 10px; border-radius:10px; font-weight:800;">Line Chart</span>
+            </h4>
+            <div style="height:350px; position:relative;">
+                <canvas id="chartBiRate"></canvas>
+            </div>
+        </div>
+
+        <!-- Grafik 3: Kurs JISDOR -->
+        <div class="glass-card" style="background:white; border-radius:24px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
+            <h4 style="margin:0 0 15px; font-size:14px; font-weight:800; color:#6e0b0b; display:flex; justify-content:space-between; align-items:center;">
+                <span>Tren Kurs JISDOR (USD/IDR)</span>
+                <span style="font-size:10px; background:#eff6ff; color:#3b82f6; padding:3px 10px; border-radius:10px; font-weight:800;">Area Chart</span>
+            </h4>
+            <div style="height:350px; position:relative;">
+                <canvas id="chartJisdor"></canvas>
+            </div>
+        </div>
+
+        <!-- Grafik 4: Harga Pangan -->
+        <div class="glass-card" style="background:white; border-radius:24px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,0.03);">
+            <h4 style="margin:0 0 15px; font-size:14px; font-weight:800; color:#6e0b0b; display:flex; justify-content:space-between; align-items:center;">
+                <span>Harga Komoditas Pangan Terbaru</span>
+                <span style="font-size:10px; background:#eff6ff; color:#3b82f6; padding:3px 10px; border-radius:10px; font-weight:800;">Bar Chart</span>
+            </h4>
+            <div style="height:350px; position:relative;">
+                <canvas id="chartPangan"></canvas>
+            </div>
         </div>
     </div>
+
+<!-- Hidden data containers to pass Jinja data to Javascript safely without triggering JS linter errors (Kutip tunggal di luar untuk data-json) -->
+<div id="data-inflasi-source" data-json='[{% for item in all_inflasi %}{"label": "{{ item.periode_str }}", "value": {{ item.inflasi_persen | default(0) }}}{% if not loop.last %},{% endif %}{% endfor %}]' style="display:none;"></div>
+<div id="data-birate-source" data-json='[{% for item in all_birate %}{"label": "{{ item.tanggal_str }}", "value": {{ item.bi_rate_persen | default(0) }}}{% if not loop.last %},{% endif %}{% endfor %}]' style="display:none;"></div>
+<div id="data-jisdor-source" data-json='[{% for item in all_jisdor %}{"label": "{{ item.tanggal_str }}", "value": {{ item.kurs_jisdor | default(0) }}}{% if not loop.last %},{% endif %}{% endfor %}]' style="display:none;"></div>
+<div id="data-pangan-source" data-json='[{% for item in all_pangan %}{"komoditas": "{{ item.komoditas }}", "harga": {{ item.harga_rp | default(0) }}}{% if not loop.last %},{% endif %}{% endfor %}]' style="display:none;"></div>
 
     <!-- Source Info -->
     <div class="glass-card source-panel">
@@ -117,6 +149,152 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Helper to parse data from container safely without linter warnings
+        function getParsedData(id) {
+            const el = document.getElementById(id);
+            return JSON.parse(el ? el.getAttribute('data-json') || '[]' : '[]');
+        }
+
+        function formatAndFilter(dataArray) {
+            // Filter only year 2026
+            let filtered = dataArray.filter(d => d.label && d.label.includes('2026'));
+            
+            const months = {
+                'Januari': 'Jan', 'Februari': 'Feb', 'Maret': 'Mar', 'April': 'Apr',
+                'Mei': 'Mei', 'Juni': 'Jun', 'Juli': 'Jul', 'Agustus': 'Agu',
+                'September': 'Sep', 'Oktober': 'Okt', 'November': 'Nov', 'Desember': 'Des'
+            };
+            // Shorten month names
+            filtered = filtered.map(d => {
+                let newLabel = d.label;
+                for (let m in months) {
+                    if (newLabel.includes(m)) {
+                        newLabel = newLabel.replace(m, months[m]);
+                    }
+                }
+                return { ...d, label: newLabel };
+            });
+            return filtered.reverse();
+        }
+
+        // 1. Chart Inflasi
+        const dataInflasi = formatAndFilter(getParsedData('data-inflasi-source'));
+
+        new Chart(document.getElementById('chartInflasi').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: dataInflasi.map(d => d.label),
+                datasets: [{
+                    label: 'Inflasi (%)',
+                    data: dataInflasi.map(d => d.value),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.04)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 2. Chart BI Rate
+        const dataBiRate = formatAndFilter(getParsedData('data-birate-source'));
+
+        new Chart(document.getElementById('chartBiRate').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: dataBiRate.map(d => d.label.split(',')[0]),
+                datasets: [{
+                    label: 'BI Rate (%)',
+                    data: dataBiRate.map(d => d.value),
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.04)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 3. Chart JISDOR (Tampilkan sekitar 1 bulan terakhir / 22 hari kerja agar tidak menumpuk)
+        const dataJisdor = formatAndFilter(getParsedData('data-jisdor-source')).slice(-22);
+
+        new Chart(document.getElementById('chartJisdor').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: dataJisdor.map(d => d.label),
+                datasets: [{
+                    label: 'Kurs JISDOR (Rp)',
+                    data: dataJisdor.map(d => d.value),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        // 4. Chart Pangan
+        const rawPangan = getParsedData('data-pangan-source');
+        console.log("[DEBUG Pangan] Raw Data:", rawPangan);
+        
+        const latestPrices = {};
+        rawPangan.forEach(item => {
+            if (!latestPrices[item.komoditas]) {
+                latestPrices[item.komoditas] = item.harga;
+            }
+        });
+
+        new Chart(document.getElementById('chartPangan').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(latestPrices).slice(0, 8),
+                datasets: [{
+                    label: 'Harga Pangan (Rp)',
+                    data: Object.values(latestPrices).slice(0, 8),
+                    backgroundColor: 'rgba(245, 158, 11, 0.85)',
+                    hoverBackgroundColor: '#f59e0b',
+                    borderRadius: 8,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    });
+</script>
 
 <style>
     .analytics-container { display: flex; flex-direction: column; gap: 25px; padding: 20px 0; }

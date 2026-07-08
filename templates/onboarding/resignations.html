@@ -1,0 +1,247 @@
+{% extends "layouts/dashboard_base.html" %}
+
+{% block dashboard_content %}
+<style>
+  /* Custom styles for matching the global theme */
+  .ent-table { border: none !important; width: 100%; border-collapse: collapse; }
+  .ent-table th, .ent-table td { border: none !important; border-bottom: 1px solid #f3efec !important; padding: 12px 16px; text-align: left; }
+  .ent-table-container { border: none !important; box-shadow: none !important; background: transparent !important; margin-top: 20px; overflow-x: auto; }
+  .ent-table-header { background: transparent !important; padding-left: 0 !important; border-bottom: none !important; }
+  .modern-table-wrapper { border: none !important; }
+  
+  .ent-table tr { border-bottom: 1px solid #eee; transition: background 0.2s; }
+  .ent-table tr:hover { background: #fff5f5; }
+  .ent-table th { background: transparent !important; color: #6e0b0b !important; border-bottom: 2px solid #6e0b0b !important; font-weight: 700; font-size: 13px; }
+  .ent-table td { font-size: 14px; color: #333; }
+
+  .onboarding-header { margin-bottom: 24px; }
+  .onboarding-header h1 { font-size: 24px; font-weight: 800; color: #6e0b0b; margin: 0; }
+  .onboarding-header p { color: #888; margin-top: 4px; font-size: 14px; }
+
+  /* Filters */
+  .filter-section {
+    background: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 24px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center; border: 1px solid #eee; box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+  }
+  .filter-input { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #fdfdfd; color: #111; font-size: 14px; flex: 1; min-width: 150px; }
+  .filter-btn { background: #6e0b0b; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+  .filter-btn:hover { background: #500808; }
+
+  /* Badges */
+  .status-badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; display: inline-block; }
+  .badge-pending { background: #fff8e1; color: #f57f17; }
+  .badge-approved { background: #e8f8f0; color: #27ae60; }
+  .badge-rejected { background: #fff5f5; color: #eb5757; }
+
+  .action-btn { border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #fff; margin-right: 4px; display: inline-flex; align-items: center; gap: 4px; }
+  .btn-approve { background: #27ae60; }
+  .btn-approve:hover { background: #219653; }
+  .btn-reject { background: #eb5757; }
+  .btn-reject:hover { background: #c0392b; }
+  
+  .bank-details { font-size: 12px; color: #666; line-height: 1.4; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .modal-content { background: #fff; padding: 24px; border-radius: 16px; width: 100%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-header h3 { margin: 0; color: #6e0b0b; font-size: 18px; font-weight: 800; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #333; }
+  .form-group input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box;}
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .btn-cancel { padding: 10px 16px; background: #eee; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .btn-submit { padding: 10px 16px; background: #6e0b0b; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+</style>
+
+<div class="onboarding-header">
+  <h1>Manajemen Pengunduran Diri</h1>
+  <p>Kelola pengajuan keluar anggota koperasi beserta pencairan simpanan</p>
+</div>
+
+<!-- Filters -->
+<form class="filter-section" method="GET" action="{{ url_for('onboarding.resignations') }}">
+  <select name="status" class="filter-input">
+    <option value="">Semua Status</option>
+    <option value="PENDING" {% if status_filter=='PENDING' %}selected{% endif %}>Menunggu Persetujuan (Pending)</option>
+    <option value="APPROVED" {% if status_filter=='APPROVED' %}selected{% endif %}>Disetujui</option>
+    <option value="REJECTED" {% if status_filter=='REJECTED' %}selected{% endif %}>Ditolak</option>
+  </select>
+  <button type="submit" class="filter-btn">
+    <i class="material-icons-round" style="font-size: 18px;">filter_list</i> Filter
+  </button>
+</form>
+
+<!-- Table -->
+<div class="ent-table-container">
+  <table class="ent-table">
+    <thead>
+      <tr>
+        <th>Anggota</th>
+        <th>Pekerjaan / Lokasi</th>
+        <th>Bulan Efektif</th>
+        <th>Pengembalian Simpanan (Bank)</th>
+        <th>Tgl Pengajuan</th>
+        <th>Status</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in requests %}
+      <tr>
+        <td>
+            <strong>{{ req.member.full_name if req.member else 'Unknown' }}</strong><br>
+            <small class="text-muted">{{ req.nipy or '-' }}</small>
+        </td>
+        <td>
+            {{ req.jabatan or '-' }}<br>
+            <small class="text-muted">{{ req.lokasi_kerja or '-' }}</small>
+        </td>
+        <td>{{ req.effective_month }}</td>
+        <td>
+            <div class="bank-details">
+                <strong>{{ req.bank_name }}</strong> ({{ req.bank_branch }})<br>
+                {{ req.bank_account_number }}<br>
+                a/n {{ req.bank_account_name }}
+            </div>
+            {% if req.transfer_proof %}
+                <a href="/{{ req.transfer_proof }}" target="_blank" style="font-size:11px; color:#6e0b0b; text-decoration:underline;">Lihat Bukti Transfer</a>
+            {% endif %}
+        </td>
+        <td>{{ req.created_at.strftime('%d %b %Y') if req.created_at else '-' }}</td>
+        <td>
+          {% if req.status == 'APPROVED' %}
+          <span class="status-badge badge-approved">DISETUJUI</span>
+          {% elif req.status == 'REJECTED' %}
+          <span class="status-badge badge-rejected">DITOLAK</span>
+          {% else %}
+          <span class="status-badge badge-pending">PENDING</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if req.status == 'PENDING' %}
+            <button class="action-btn btn-approve" data-id="{{ req.id }}" data-name="{{ req.member.full_name if req.member else '' }}" onclick="openApproveModal(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                <i class="material-icons-round" style="font-size: 14px;">check</i> Setuju
+            </button>
+            <button class="action-btn btn-reject" data-id="{{ req.id }}" onclick="rejectRequest(this.getAttribute('data-id'))">
+                <i class="material-icons-round" style="font-size: 14px;">close</i> Tolak
+            </button>
+          {% else %}
+            <span style="font-size:12px; color:#888;">-</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+          <td colspan="7" style="text-align: center; padding: 40px; color: #888;">Belum ada pengajuan pengunduran diri dengan status ini.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Approve Modal -->
+<div class="modal-overlay" id="approveModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Persetujuan Pengunduran Diri</h3>
+            <button class="modal-close" onclick="closeApproveModal()">&times;</button>
+        </div>
+        <form id="approveForm" onsubmit="submitApprove(event)">
+            <p style="font-size: 13px; color: #555; margin-bottom: 16px;">
+                Anda akan menyetujui pengunduran diri untuk <strong id="approveMemberName"></strong>. 
+                Data keanggotaan akan dinonaktifkan.
+            </p>
+            <div class="form-group">
+                <label>Bukti Transfer Sisa Simpanan (Wajib)</label>
+                <input type="file" id="transferProof" required accept="image/*,application/pdf">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeApproveModal()">Batal</button>
+                <button type="submit" class="btn-submit" id="btnSubmitApprove">Setujui & Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentReqId = null;
+
+    function openApproveModal(id, memberName) {
+        currentReqId = id;
+        document.getElementById('approveMemberName').textContent = memberName;
+        document.getElementById('transferProof').value = '';
+        document.getElementById('approveModal').style.display = 'flex';
+    }
+
+    function closeApproveModal() {
+        document.getElementById('approveModal').style.display = 'none';
+        currentReqId = null;
+    }
+
+    async function submitApprove(e) {
+        e.preventDefault();
+        const fileInput = document.getElementById('transferProof');
+        if (!fileInput.files[0]) {
+            alert('Pilih file bukti transfer!');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('transfer_proof', fileInput.files[0]);
+
+        const btn = document.getElementById('btnSubmitApprove');
+        btn.textContent = 'Memproses...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/onboarding/resignations/${currentReqId}/approve`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Pengajuan berhasil disetujui!');
+                window.location.reload();
+            } else {
+                alert(data.message || 'Terjadi kesalahan');
+                btn.textContent = 'Setujui & Upload';
+                btn.disabled = false;
+            }
+        } catch (err) {
+            alert('Gagal menghubungi server');
+            btn.textContent = 'Setujui & Upload';
+            btn.disabled = false;
+        }
+    }
+
+    async function rejectRequest(id) {
+        const reason = prompt('Masukkan alasan penolakan pengajuan pengunduran diri ini:');
+        if (reason === null) return; // cancelled
+        if (reason.trim() === '') {
+            alert('Alasan penolakan wajib diisi!');
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append('reason', reason);
+            
+            const res = await fetch(`/onboarding/resignations/${id}/reject`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Pengajuan berhasil ditolak.');
+                window.location.reload();
+            } else {
+                alert(data.message || 'Terjadi kesalahan');
+            }
+        } catch (err) {
+            alert('Gagal menghubungi server');
+        }
+    }
+</script>
+{% endblock %}

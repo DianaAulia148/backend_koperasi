@@ -6,7 +6,10 @@
         <div class="chart-header" style="margin-bottom: 25px;">
             <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #6e0b0b;">Harga Pangan Harian (Bank Indonesia)</h3>
             {% if data %}
-            <span style="font-size: 0.85rem; color: #666; font-weight: 600;">Update Terakhir: {{ data[0].tanggal_str }}</span>
+            <div style="margin-top: 5px; display:flex; gap:10px; align-items:center;">
+                <span style="font-size: 0.85rem; color: #666; font-weight: 600;">Update Terakhir: {{ data[0].tanggal_str }}</span>
+                <span style="background:rgba(16,185,129,0.1); color:#10b981; padding:2px 6px; border-radius:4px; font-size:9px; font-weight:800;">⏰ PENJADWALAN: HARIAN &amp; PER JAM (OTOMATIS)</span>
+            </div>
             {% endif %}
         </div>
         <div class="chart-body" style="height: 400px; position: relative;">
@@ -18,9 +21,13 @@
         <div class="ent-table-header" style="padding:25px 30px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f3efec; flex-wrap:wrap; gap:15px;">
             <div style="display:flex; align-items:center; gap:20px;">
                 <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:#6e0b0b;">Data Harga Komoditas</h3>
+                <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
             </div>
             <div style="display:flex; align-items:center; gap:15px;">
                 <form method="GET" action="" style="display:flex; gap:10px; align-items:center; margin:0;">
+                    <div style="background:#eff6ff; color:#3b82f6; padding:8px 12px; border-radius:8px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:5px;">
+                        <i class="material-icons-round" style="font-size:16px;">public</i> Data: Rata-Rata Nasional
+                    </div>
                     <input type="date" name="start_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ start_date or '' }}">
                     <span style="color:#666; font-weight:bold;">-</span>
                     <input type="date" name="end_date" class="ent-search-input" style="width:140px; padding:8px 12px; border-radius:8px;" value="{{ end_date or '' }}">
@@ -46,7 +53,7 @@
                         <th style="text-align: center;">STATUS</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="food-tbody">
                     {% for item in data %}
                     <tr>
                         <td style="text-align: center; font-weight: 800; color: #6e0b0b;">{{ loop.index }}</td>
@@ -66,6 +73,9 @@
     </div>
 </div>
 
+<!-- Hidden data container to pass Jinja data to Javascript safely without triggering JS linter errors -->
+<div id="food-chart-data" data-prices='[{% for item in data %}{"komoditas": "{{ item.komoditas }}", "harga": {{ item.harga_rp }}}{% if not loop.last %},{% endif %}{% endfor %}]' style="display:none;"></div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Init Table
@@ -75,18 +85,14 @@
             perPage: 10
         });
 
-        // Init Chart
-        // Process data for chart to show only one value per commodity (latest in the filtered set)
-        const rawData = [
-            {% for item in data %}
-                { komoditas: '{{ item.komoditas }}', harga: {{ item.harga_rp }} },
-            {% endfor %}
-        ];
+        // Initialize original chart with Jinja data
+        const dataEl = document.getElementById('food-chart-data');
+        const rawData = JSON.parse(dataEl ? dataEl.getAttribute('data-prices') || '[]' : '[]');
         
         const latestPrices = {};
         rawData.forEach(item => {
             if (!latestPrices[item.komoditas]) {
-                latestPrices[item.komoditas] = item.harga;
+                latestPrices[item.komoditas] = item.harga || item.harga_rp;
             }
         });
 

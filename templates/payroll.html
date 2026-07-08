@@ -80,12 +80,6 @@
                     <p>Unggah file Excel berisi potongan spesifik tiap anggota. Pastikan menggunakan format yang sesuai.</p>
                 </div>
 
-                <div style="margin-bottom:20px; display:flex; gap:10px;">
-                    <a href="/finance/payroll/download_template" class="btn-outline" style="flex:1; justify-content:center; text-decoration:none;">
-                        <i class="material-icons-round" style="font-size:16px;">download</i> Download Template Excel
-                    </a>
-                </div>
-
                 <div id="dropZone" style="background:#fff8f8;border:2px dashed #f3e0e0;border-radius:16px;padding:30px;text-align:center;cursor:pointer;transition:all 0.3s;">
                     <i class="material-icons-round" style="font-size:40px;color:#6e0b0b;margin-bottom:10px;">upload_file</i>
                     <h5 style="margin:0 0 5px;font-size:14px;color:#111;">Klik atau Tarik File .xlsx ke Sini</h5>
@@ -201,21 +195,6 @@
                 </button>
             </div>
 
-            <!-- Distribution Progress (real dari stats) -->
-            <div class="progress-card" id="progressCard">
-                <h4>Distribusi Keseluruhan</h4>
-                <div class="progress-info">
-                    <span class="percentage" id="progressPct">0%</span>
-                    <span class="count" id="progressCount">0 / 0 anggota</span>
-                </div>
-                <div class="progress-bar-wrap">
-                    <div class="progress-bar" id="progressBar" style="width:0%;transition:width 0.5s ease;"></div>
-                </div>
-                <p style="font-size:11px;color:#888;margin-top:10px;" id="progressNote">
-                    Data diambil dari database secara real-time.
-                </p>
-            </div>
-
             <!-- Failed Distribution (real dari DB) -->
             <div class="failed-panel-card" id="failedPanel">
                 <div class="failed-header">
@@ -299,13 +278,20 @@
     .realtime-badge { background:#fff0f0;color:#6e0b0b;font-size:10px;font-weight:800;padding:5px 12px;border-radius:20px;text-transform:uppercase; }
     .stepper-container { display:flex;align-items:center;justify-content:space-between;padding:0 50px; }
     .step { display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;z-index:2; }
-    .step-icon { width:40px;height:40px;background:#f3efec;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#8c8282;border:4px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.05);font-size:14px; }
+    .step-icon { width:40px;height:40px;background:#f3efec;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#8c8282;border:4px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.05);font-size:14px; transition: all 0.3s ease; }
     .step.active .step-icon { background:#6e0b0b;color:white;box-shadow:0 8px 20px rgba(110,11,11,0.2); }
     .step.completed .step-icon { background:#22c55e;color:white; }
-    .step-label { font-size:12px;font-weight:700;color:#8c8282; }
-    .step.active .step-label, .step.completed .step-label { color:#111; }
-    .step-line { flex:1;height:4px;background:#f3efec;margin:0 -20px;margin-top:-25px; }
+    .step.processing .step-icon { background:#3b82f6;color:white;box-shadow:0 8px 20px rgba(59,130,246,0.3); animation: stepperPulse 1.5s infinite; }
+    @keyframes stepperPulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+    .step-label { font-size:12px;font-weight:700;color:#8c8282; transition: color 0.3s ease; }
+    .step.active .step-label, .step.completed .step-label, .step.processing .step-label { color:#111; }
+    .step-line { flex:1;height:4px;background:#f3efec;margin:0 -20px;margin-top:-25px; transition: background 0.3s ease; }
     .step-line.active { background:#6e0b0b; }
+    .step-line.processing { background:#3b82f6; }
     .main-payroll-grid { display:grid;grid-template-columns:1fr 350px;gap:30px; }
     .upload-area-card { background:white;padding:30px;border-radius:24px;box-shadow:0 4px 20px rgba(0,0,0,0.05); }
     .upload-header h4 { margin:0 0 8px;font-size:16px;font-weight:800; }
@@ -372,10 +358,13 @@ function refreshStats() {
             const total = data.active_members || 1;
             const success = data.successful_distributions;
             const pct = Math.min(100, Math.round((success / total) * 100));
-            document.getElementById('progressBar').style.width = pct + '%';
-            document.getElementById('progressPct').textContent = pct + '%';
-            document.getElementById('progressCount').textContent =
-                success + ' / ' + total + ' anggota terdistribusi';
+            const progressBar = document.getElementById('progressBar');
+            if (progressBar) {
+                progressBar.style.width = pct + '%';
+                document.getElementById('progressPct').textContent = pct + '%';
+                document.getElementById('progressCount').textContent =
+                    success + ' / ' + total + ' anggota terdistribusi';
+            }
 
             // Failed distributions
             const failedCount = data.failed_distributions;
@@ -447,6 +436,9 @@ function handleFileSelect(file) {
     dropZone.style.display = 'none';
     fileInfo.style.display = 'flex';
     btnProcess.disabled = false;
+
+    // Stepper interactive step 1
+    document.getElementById('step1').classList.add('completed');
 }
 
 function removeFile() {
@@ -455,6 +447,13 @@ function removeFile() {
     dropZone.style.display = 'block';
     fileInfo.style.display = 'none';
     btnProcess.disabled = true;
+
+    // Reset stepper
+    document.getElementById('step1').classList.remove('completed');
+    document.getElementById('step2').classList.remove('active', 'processing', 'completed');
+    document.getElementById('step3').classList.remove('active', 'completed');
+    document.getElementById('line1').classList.remove('active', 'processing');
+    document.getElementById('line2').classList.remove('active', 'processing');
 }
 
 // ── Proses Payroll Excel ────────────────────────────────────────────────────
@@ -472,9 +471,12 @@ function uploadPayroll() {
     info.style.display = 'block';
     infoText.textContent = 'Memvalidasi data dan mendistribusikan dana. Mohon tunggu...';
 
-    // Animasi stepper
-    document.getElementById('step2').classList.add('active');
-    document.getElementById('line1').classList.add('active');
+    // Animasi stepper: Distribusi (Step 2) dalam proses
+    document.getElementById('step1').classList.add('completed');
+    document.getElementById('step2').classList.remove('completed');
+    document.getElementById('step2').classList.add('active', 'processing');
+    document.getElementById('line1').classList.remove('active');
+    document.getElementById('line1').classList.add('processing');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -490,8 +492,12 @@ function uploadPayroll() {
         info.style.display = 'none';
 
         if (data.success) {
+            // Animasi stepper: Step 2 selesai, Step 3 aktif & selesai
+            document.getElementById('step2').classList.remove('processing');
             document.getElementById('step2').classList.add('completed');
             document.getElementById('step3').classList.add('active', 'completed');
+            document.getElementById('line1').classList.remove('processing');
+            document.getElementById('line1').classList.add('active');
             document.getElementById('line2').classList.add('active');
 
             document.getElementById('successCount').textContent = data.success_count;
@@ -503,8 +509,8 @@ function uploadPayroll() {
             setTimeout(() => window.location.reload(), 3000);
         } else {
             alert('Gagal: ' + (data.error || 'Terjadi kesalahan.'));
-            document.getElementById('step2').classList.remove('active');
-            document.getElementById('line1').classList.remove('active');
+            document.getElementById('step2').classList.remove('active', 'processing');
+            document.getElementById('line1').classList.remove('processing');
         }
     })
     .catch(err => {
@@ -512,6 +518,8 @@ function uploadPayroll() {
         btnText.textContent = 'Proses File Excel';
         info.style.display = 'none';
         alert('Kesalahan jaringan: ' + err.message);
+        document.getElementById('step2').classList.remove('active', 'processing');
+        document.getElementById('line1').classList.remove('processing');
     });
 }
 

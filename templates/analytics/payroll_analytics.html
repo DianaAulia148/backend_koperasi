@@ -2,6 +2,21 @@
 
 {% block dashboard_content %}
 <div class="analytics-container">
+    <!-- Data Source Badge and Date Filter -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 5px;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">📊 DATA: REAL DATABASE KOPERASI</span>
+            <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+        </div>
+        <form method="GET" action="{{ url_for('analytics.payroll_analytics') }}" style="display: flex; gap: 10px; align-items: center; margin: 0; background: white; padding: 6px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+            <span style="font-size: 12px; font-weight: 700; color: #555;">Periode:</span>
+            <input type="date" name="start_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ start_date or '' }}">
+            <span style="color: #888; font-weight: bold;">-</span>
+            <input type="date" name="end_date" style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;" value="{{ end_date or '' }}">
+            <button type="submit" style="background: #6e0b0b; color: white; border: none; padding: 6px 15px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s;">Filter</button>
+        </form>
+    </div>
+
     <!-- Header Metrics -->
     <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;">
         <div class="stat-card" style="background: #6e0b0b; padding: 35px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
@@ -18,7 +33,7 @@
                 <i class="material-icons-round">groups</i>
             </div>
             <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Anggota Penerima</div>
-            <h3 style="font-size: 2.25rem; font-weight: 800; margin: 10px 0;">1.240</h3>
+            <h3 style="font-size: 2.25rem; font-weight: 800; margin: 10px 0;">{{ "{:,}".format(total_members_payroll).replace(',', '.') }}</h3>
             <div style="font-size: 0.75rem; opacity: 0.7;">Orang terdaftar</div>
         </div>
 
@@ -26,21 +41,71 @@
             <div style="background: rgba(255, 255, 255, 0.1); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
                 <i class="material-icons-round">verified</i>
             </div>
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Tingkat Akurasi</div>
-            <h3 style="font-size: 2.25rem; font-weight: 800; margin: 10px 0;">99.9%</h3>
-            <div style="font-size: 0.75rem; opacity: 0.7;">Validasi OCR otomatis</div>
+            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Tingkat Keberhasilan Distribusi</div>
+            <h3 style="font-size: 2.25rem; font-weight: 800; margin: 10px 0;">{{ accuracy_rate }}%</h3>
+            <div style="font-size: 0.75rem; opacity: 0.7;">Batch payroll berhasil</div>
         </div>
     </div>
 
     <!-- Trend Chart -->
     <div class="dashboard-card" style="background: white; border-radius: 24px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px;">
         <div class="chart-header" style="margin-bottom: 25px;">
-            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Tren Distribusi Payroll</h3>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Tren Distribusi Payroll (6 Bulan)</h3>
         </div>
         <div class="chart-body" style="height: 350px; position: relative;">
             <canvas id="payrollTrendChart"></canvas>
         </div>
     </div>
+
+    <!-- ── Payroll Intelligence Analysis ── -->
+    {% if payroll_insights or payroll_warnings or payroll_tips %}
+    <div style="background: white; border-radius: 24px; padding: 28px 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 30px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px;">
+            <i class="material-icons-round" style="color: #6e0b0b; font-size: 1.3rem;">auto_awesome</i>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Analisis Cerdas Payroll</h3>
+            <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600; background: #f8fafc; padding: 3px 10px; border-radius: 20px;">Otomatis dari data aktual</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+
+            {% for item in payroll_warnings %}
+            <div style="--item-color: {{ item.color }}; display: flex; gap: 14px; align-items: flex-start; background: #fff7f7; border: 1px solid rgba(239,68,68,0.2); border-left: 4px solid var(--item-color); border-radius: 12px; padding: 16px 18px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(239,68,68,0.09); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="material-icons-round" style="color: var(--item-color); font-size: 1.1rem;">{{ item.icon }}</i>
+                </div>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.88rem; color: #1e293b; margin-bottom: 5px;">{{ item.title }}</div>
+                    <div style="font-size: 0.8rem; color: #64748b; line-height: 1.55;">{{ item.detail | safe }}</div>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% for item in payroll_insights %}
+            <div style="--item-color: {{ item.color }}; display: flex; gap: 14px; align-items: flex-start; background: #f0fdf4; border: 1px solid rgba(16,185,129,0.2); border-left: 4px solid var(--item-color); border-radius: 12px; padding: 16px 18px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(16,185,129,0.13); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="material-icons-round" style="color: var(--item-color); font-size: 1.1rem;">{{ item.icon }}</i>
+                </div>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.88rem; color: #1e293b; margin-bottom: 5px;">{{ item.title }}</div>
+                    <div style="font-size: 0.8rem; color: #64748b; line-height: 1.55;">{{ item.detail | safe }}</div>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% for item in payroll_tips %}
+            <div style="display: flex; gap: 14px; align-items: flex-start; background: #f0f9ff; border: 1px solid rgba(59,130,246,0.2); border-left: 4px solid #3b82f6; border-radius: 12px; padding: 16px 18px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; background: #3b82f618; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    <i class="material-icons-round" style="color: #3b82f6; font-size: 1.1rem;">{{ item.icon }}</i>
+                </div>
+                <div>
+                    <div style="font-weight: 800; font-size: 0.88rem; color: #1e293b; margin-bottom: 5px;">{{ item.title }}</div>
+                    <div style="font-size: 0.8rem; color: #64748b; line-height: 1.55;">{{ item.detail | safe }}</div>
+                </div>
+            </div>
+            {% endfor %}
+
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Batch Table -->
     <div class="ent-table-container" style="background: white; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05);">
@@ -84,6 +149,12 @@
     </div>
 </div>
 
+<!-- Hidden elements to pass Jinja data to Javascript safely without linter errors -->
+<div id="payroll-analytics-data"
+     data-months='{{ payroll_months | tojson }}'
+     data-trend='{{ payroll_trend | tojson }}'
+     style="display:none;"></div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Init Table
@@ -93,15 +164,48 @@
             perPage: 10
         });
 
-        // Init Chart
+        const dataEl = document.getElementById('payroll-analytics-data');
+        const payrollMonths = JSON.parse(dataEl.getAttribute('data-months') || '[]');
+        const payrollTrend = JSON.parse(dataEl.getAttribute('data-trend') || '[]');
+
+        // Init Chart — REAL DATA
         const ctx = document.getElementById('payrollTrendChart').getContext('2d');
+
+        // Formatter: konversi nilai Ribu Rp → string human-readable (sama seperti saving_trend.html)
+        function formatRibuRp(val) {
+            if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.', ',') + ' M';
+            if (val >= 1000)    return (val / 1000).toFixed(1).replace('.', ',') + ' jt';
+            if (val >= 1)       return val.toLocaleString('id-ID') + ' rb';
+            return '0';
+        }
+
+        const STEP_RIBU = 50;
+
+        // Hitung batas minimal dan maksimal Y secara dinamis agar variasi data yang tinggi tetap terlihat jelas
+        const minPay = payrollTrend.length > 0 ? Math.min(...payrollTrend) : 0;
+        const maxPay = payrollTrend.length > 0 ? Math.max(...payrollTrend) : 1000;
+        const diff = maxPay - minPay;
+
+        let yMin, yMax, stepSizeY;
+        if (diff > 0) {
+            const padding = diff * 0.25; // 25% padding
+            yMin = Math.max(0, Math.floor((minPay - padding) / STEP_RIBU) * STEP_RIBU);
+            yMax = Math.ceil((maxPay + padding) / STEP_RIBU) * STEP_RIBU;
+            stepSizeY = Math.max(STEP_RIBU, Math.round((yMax - yMin) / 8 / STEP_RIBU) * STEP_RIBU);
+        } else {
+            // Jika datanya datar (nilai sama semua)
+            yMin = Math.max(0, Math.floor((maxPay * 0.95) / STEP_RIBU) * STEP_RIBU); // mulai dari 95% nilai
+            yMax = Math.ceil((maxPay * 1.05) / STEP_RIBU) * STEP_RIBU; // berakhir di 105% nilai
+            stepSizeY = Math.max(STEP_RIBU, Math.round((yMax - yMin) / 8 / STEP_RIBU) * STEP_RIBU);
+        }
+
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
+                labels: payrollMonths,
                 datasets: [{
-                    label: 'Nominal Payroll',
-                    data: [800, 850, 820, 900, 950, 1050],
+                    label: 'Nominal Payroll (Ribu Rp)',
+                    data: payrollTrend,
                     borderColor: '#6e0b0b',
                     backgroundColor: 'rgba(110, 11, 11, 0.1)',
                     fill: true,
@@ -113,10 +217,50 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const ribu = ctx.parsed.y;
+                                const rp = ribu * 1000;
+                                return ctx.dataset.label.split('(')[0].trim() + ': Rp ' + rp.toLocaleString('id-ID');
+                            }
+                        }
+                    }
+                },
                 scales: {
-                    y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
-                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: false,
+                        min: yMin,
+                        max: yMax,
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: {
+                            color: '#94a3b8',
+                            stepSize: stepSizeY,
+                            callback: function(val) {
+                                return formatRibuRp(val);
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Nominal Payroll',
+                            color: '#94a3b8',
+                            font: { size: 11, weight: 'bold' }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            maxRotation: 0,
+                            autoSkip: true,
+                            autoSkipPadding: 10
+                        }
+                    }
                 }
             }
         });

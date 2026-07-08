@@ -1,57 +1,95 @@
 {% extends "layouts/dashboard_base.html" %}
 
 {% block dashboard_content %}
-<div class="report-header">
-  <h1>Data Laporan Keuangan</h1>
+<div class="report-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+  <div>
+    <h1 style="font-size:2.2rem; font-weight:800; color:#6e0b0b; margin:0;">Laporan Transaksi Keuangan</h1>
+    <p style="margin:5px 0 0; color:#888; font-size:13px; font-weight:500;">Pantau riwayat transaksi, pemasukan payroll, dan penarikan anggota secara real-time.</p>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <button onclick="confirmResetDatabase()" style="cursor:pointer; background:#fff5f5; border:1.5px dashed #ef4444; padding:10px 18px; border-radius:12px; font-weight:700; color:#ef4444; display: flex; align-items:center; gap:8px; font-size:13px; transition:all 0.2s;" onmouseover="this.style.background='#ffe8e8'" onmouseout="this.style.background='#fff5f5'">
+      <i class="material-icons-round" style="font-size: 20px;">restart_alt</i> Bersihkan Database
+    </button>
+    <button onclick="window.print()" style="cursor:pointer; background:white; border:1px solid #ddd; padding:10px 18px; border-radius:12px; font-weight:700; color:#6e0b0b; display: flex; align-items:center; gap:8px; font-size:13px; box-shadow:0 4px 10px rgba(0,0,0,0.02); transition:all 0.2s;" onmouseover="this.style.background='#fcfcfc'" onmouseout="this.style.background='white'">
+      <i class="material-icons-round" style="font-size: 20px;">print</i> Cetak Laporan
+    </button>
+  </div>
 </div>
 
-<div class="filter-panel">
-  <form class="filter-form" method="GET">
-    <div class="form-group">
-      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">MULAI TANGGAL</label>
-      <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+<!-- Premium Summary Grid -->
+<div class="summary-reports-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; margin-bottom:30px;">
+  <div class="report-card-stat" style="background:#6e0b0b; padding:25px 20px; border-radius:24px; color:white; position:relative; overflow:hidden; box-shadow:0 10px 25px rgba(110,11,11,0.15);">
+    <div style="background:rgba(255,255,255,0.1); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:15px;">
+      <i class="material-icons-round" style="font-size:20px;">account_balance_wallet</i>
     </div>
-    <div class="form-group">
-      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">SAMPAI TANGGAL</label>
-      <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+    <div style="font-size:11px; font-weight:700; opacity:0.8; text-transform:uppercase; letter-spacing:0.5px;">Total Saldo Simpanan</div>
+    <h3 style="font-size:1.6rem; font-weight:800; margin:8px 0 0;">Rp {{ "{:,.0f}".format(total_balance).replace(',', '.') }}</h3>
+  </div>
+  <div class="report-card-stat" style="background:white; border:1px solid #f0e9e9; padding:25px 20px; border-radius:24px; color:#111; box-shadow:0 4px 20px rgba(0,0,0,0.02);">
+    <div style="background:#fff0f0; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:15px; color:#6e0b0b;">
+      <i class="material-icons-round" style="font-size:20px;">payments</i>
     </div>
-    <div class="form-group">
-      <label style="display:block; margin-bottom:5px; font-size:11px; font-weight:700; color: #888;">KATEGORI</label>
-      <select name="category" class="form-control">
+    <div style="font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Payroll (Pemasukan)</div>
+    <h3 style="font-size:1.6rem; font-weight:800; margin:8px 0 0; color:#27ae60;">+ Rp {{ "{:,.0f}".format(total_payroll).replace(',', '.') }}</h3>
+  </div>
+  <div class="report-card-stat" style="background:white; border:1px solid #f0e9e9; padding:25px 20px; border-radius:24px; color:#111; box-shadow:0 4px 20px rgba(0,0,0,0.02);">
+    <div style="background:#fff0f0; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:15px; color:#6e0b0b;">
+      <i class="material-icons-round" style="font-size:20px;">upload_file</i>
+    </div>
+    <div style="font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Total Penarikan (Cair)</div>
+    <h3 style="font-size:1.6rem; font-weight:800; margin:8px 0 0; color:#eb5757;">- Rp {{ "{:,.0f}".format(total_withdrawal).replace(',', '.') }}</h3>
+  </div>
+  <div class="report-card-stat" style="background:white; border:1px solid #f0e9e9; padding:25px 20px; border-radius:24px; color:#111; box-shadow:0 4px 20px rgba(0,0,0,0.02);">
+    <div style="background:#fff0f0; width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:15px; color:#6e0b0b;">
+      <i class="material-icons-round" style="font-size:20px;">history</i>
+    </div>
+    <div style="font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Jumlah Transaksi</div>
+    <h3 style="font-size:1.6rem; font-weight:800; margin:8px 0 0; color:#111;">{{ total_transactions }} Kali</h3>
+  </div>
+</div>
+
+<!-- Modern Filter Panel -->
+<div class="filter-panel" style="background:white; border:1px solid #f0e9e9; border-radius:24px; padding:25px; margin-bottom:30px; box-shadow:0 4px 20px rgba(0,0,0,0.01);">
+  <form class="filter-form" method="GET" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; align-items:flex-end;">
+    <div class="form-group" style="display:flex; flex-direction:column; gap:8px;">
+      <label style="font-size:10px; font-weight:800; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Periode Bulanan</label>
+      <input type="month" name="period" class="form-control" value="{{ period }}" style="padding:12px 16px; border:1.5px solid #eee; border-radius:12px; outline:none; font-weight:600; font-size:13px; transition:border-color 0.2s;" onfocus="this.style.borderColor='#6e0b0b'" onblur="this.style.borderColor='#eee'">
+    </div>
+    <div class="form-group" style="display:flex; flex-direction:column; gap:8px;">
+      <label style="font-size:10px; font-weight:800; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Cari Anggota</label>
+      <input type="search" id="report-search" name="search" class="form-control" placeholder="Cari nama anggota..." value="{{ request.args.get('search', '') }}" style="padding:12px 16px; border:1.5px solid #eee; border-radius:12px; outline:none; font-weight:600; font-size:13px; transition:border-color 0.2s;" onfocus="this.style.borderColor='#6e0b0b'" onblur="this.style.borderColor='#eee'">
+    </div>
+    <div class="form-group" style="display:flex; flex-direction:column; gap:8px;">
+      <label style="font-size:10px; font-weight:800; color:#888; text-transform:uppercase; letter-spacing:0.5px;">Kategori Simpanan</label>
+      <select name="category" class="form-control" style="padding:12px 16px; border:1.5px solid #eee; border-radius:12px; outline:none; font-weight:600; font-size:13px; background-color:white; transition:border-color 0.2s;" onfocus="this.style.borderColor='#6e0b0b'" onblur="this.style.borderColor='#eee'">
         <option value="SEMUA" {% if category == 'SEMUA' or not category %}selected{% endif %}>- SEMUA SIMPANAN -</option>
         {% for st in saving_types %}
         <option value="{{ st.id }}" {% if category == st.id|string %}selected{% endif %}>{{ st.name }}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="btn-submit">TAMPILKAN DATA</button>
+    <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+      <input type="checkbox" id="withdrawals_only" name="withdrawals_only" value="1" {% if withdrawals_only %}checked{% endif %} style="width:18px; height:18px; accent-color:#6e0b0b;">
+      <label for="withdrawals_only" style="font-size:12px; font-weight:700; color:#444;">Tampilkan hanya penarikan</label>
+    </div>
+    <button type="submit" class="btn-submit" style="background:#6e0b0b; color:white; border:none; padding:12px 24px; border-radius:12px; font-weight:800; font-size:14px; cursor:pointer; height:46px; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(110,11,11,0.15); transition:all 0.2s;" onmouseover="this.style.background='#8b0d0d'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='#6e0b0b'; this.style.transform='none';">
+      <i class="material-icons-round" style="font-size:18px;">filter_alt</i> TAMPILKAN DATA
+    </button>
   </form>
 </div>
 
-<div class="report-info">
-  <div>PERIODE: <b style="color:#333;">{{ start_date }} s/d {{ end_date }}</b></div>
-  <div>KATEGORI: <b style="color:#333;">
+<div class="report-info" style="background:#fff8f8; border:1px dashed #f5dbdb; padding:15px 25px; border-radius:16px; margin-bottom:30px; display:flex; gap:30px; font-size:12px; font-weight:700; color:#6e0b0b; align-items:center; flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:8px;"><i class="material-icons-round" style="font-size:16px;">date_range</i> PERIODE: <span style="color:#111;">{{ period }}</span></div>
+  <div style="display:flex; align-items:center; gap:8px;"><i class="material-icons-round" style="font-size:16px;">category</i> KATEGORI: <span style="color:#111;">
     {% if category and category != 'SEMUA' %}
-      {% for st in saving_types %}{% if category == st.id|string %}{{ st.name }}{% endif %}{% endfor %}
+      {% for st in saving_types %}{% if category == st.id|string %}{{ st.name | upper }}{% endif %}{% endfor %}
     {% else %}
       SEMUA SIMPANAN
     {% endif %}
-  </b></div>
-  <div style="margin-left: auto;">
-    <button onclick="window.print()" style="cursor:pointer; background:white; border:1px solid #ddd; padding:6px 15px; border-radius:8px; font-weight:700; color:#6e0b0b; display: flex; align-items:center; gap:8px;">
-      <i class="material-icons-round" style="font-size: 18px;">print</i> PRINT LAPORAN
-    </button>
-  </div>
+  </span></div>
+  <div style="display:flex; align-items:center; gap:8px;"><i class="material-icons-round" style="font-size:16px;">savings</i> MODE: <span style="color:#111;">{% if withdrawals_only %}Hanya Penarikan{% else %}Semua Transaksi{% endif %}</span></div>
+  <div style="display:flex; align-items:center; gap:8px;"><i class="material-icons-round" style="font-size:16px;">storage</i> SUMBER DATA: <span style="color:#111;">Riwayat database anggota</span></div>
 </div>
-
-<div class="ent-table-container">
-  <div class="ent-table-header">
-    <div style="font-size: 1.1rem; font-weight: 800; color: #6e0b0b;">Detail Transaksi Keuangan</div>
-    <div class="ent-search-wrapper">
-      <i class="material-icons-round ent-search-icon">search</i>
-      <input type="text" id="report-search" class="ent-search-input" placeholder="Cari nama atau keterangan...">
-    </div>
-  </div>
 
   <div class="ent-table-wrapper">
     <table class="ent-table" id="report-table">
@@ -70,10 +108,10 @@
 
         <tr>
           <th rowspan="2" style="width: 60px; text-align: center;">NO</th>
-          <th rowspan="2" style="width: 120px; text-align: center;">TANGGAL</th>
           <th rowspan="2" style="text-align: left;">NAMA ANGGOTA</th>
           <th colspan="{{ v_len }}" style="text-align: center;">KATEGORI SIMPANAN</th>
           <th colspan="2" style="text-align: center;">JENIS TRANSAKSI</th>
+          <th rowspan="2" style="width: 140px; text-align: center;">TOTAL SALDO</th>
         </tr>
         <tr>
           {% for st in visible_types %}
@@ -84,43 +122,35 @@
         </tr>
       </thead>
       <tbody>
-        {% set totals = namespace(pemasukan=0, pengeluaran=0) %}
         {% set type_totals = {} %}
         {% for st in saving_types %}
           {% set _ = type_totals.update({st.id|string: 0}) %}
         {% endfor %}
 
         {% if recent_tx %}
-          {% for tx in recent_tx %}
+          {% for row in recent_tx %}
           <tr>
             <td style="text-align: center;">{{ loop.index }}</td>
-            <td style="text-align: center; font-weight: 500;">{{ tx.transaction_date.strftime('%d/%m/%Y') }}</td>
-            <td style="font-weight: 700; color: #222;">{{ tx.member_name }}</td>
-            
+            <td style="font-weight: 700; color: #222;">{{ row.member.full_name }}</td>
             {% for st in visible_types %}
-            <td class="amount">
-              {% if tx.saving_type_id == st.id %}
-                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
+            <td class="amount" style="text-align: right;">
+              {% set balance_value = row.balances.get(st.id, 0) %}
+              {% if balance_value > 0 %}
+                Rp {{ "{:,.0f}".format(balance_value).replace(',', '.') }}
                 {% set current_v = type_totals[st.id|string] %}
-                {% set _ = type_totals.update({st.id|string: current_v + tx.amount}) %}
+                {% set _ = type_totals.update({st.id|string: current_v + balance_value}) %}
               {% else %}
                 <span style="color: #ccc;">-</span>
               {% endif %}
             </td>
             {% endfor %}
-
-            <td class="amount" style="color: #2e7d32; background: rgba(46, 125, 50, 0.02);">
-              {% if tx.transaction_type == 'CREDIT' %}
-                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
-                {% set totals.pemasukan = totals.pemasukan + tx.amount %}
-              {% else %}-{% endif %}
+            <td class="amount" style="color: #2e7d32; background: rgba(46, 125, 50, 0.02); font-weight: 700; text-align: right;">
+              Rp {{ "{:,.0f}".format(row.pemasukan).replace(',', '.') }}
             </td>
-            <td class="amount" style="color: #c62828; background: rgba(198, 40, 40, 0.02);">
-              {% if tx.transaction_type == 'DEBIT' %}
-                Rp {{ "{:,.0f}".format(tx.amount).replace(',', '.') }}
-                {% set totals.pengeluaran = totals.pengeluaran + tx.amount %}
-              {% else %}-{% endif %}
+            <td class="amount" style="color: #c62828; background: rgba(198, 40, 40, 0.02); font-weight: 700; text-align: right;">
+              Rp {{ "{:,.0f}".format(row.pengeluaran).replace(',', '.') }}
             </td>
+            <td class="amount" style="text-align: right; font-weight: 700;">Rp {{ "{:,.0f}".format(row.total_balance).replace(',', '.') }}</td>
           </tr>
           {% endfor %}
         {% endif %}
@@ -134,14 +164,18 @@
       {% if recent_tx %}
       <tfoot id="report-footer">
         <tr style="background: #fdfdfd; font-weight: 800; border-top: 2px solid #6e0b0b;">
-          <td colspan="3" style="text-align: right; padding-right: 20px; font-size: 0.75rem; color: #888;">RINGKASAN TOTAL</td>
+          <td colspan="2" style="text-align: right; padding-right: 20px; font-size: 0.75rem; color: #888;">RINGKASAN TOTAL</td>
           {% for st in visible_types %}
-          <td class="amount" style="color: #6e0b0b;">Rp {{ "{:,.0f}".format(type_totals[st.id|string]).replace(',', '.') }}</td>
+          <td class="amount" style="color: #6e0b0b; text-align: right;">Rp {{ "{:,.0f}".format(full_type_totals[st.id|string]).replace(',', '.') }}</td>
           {% endfor %}
-          <td class="amount" style="color: #2e7d32; font-size: 1rem;">Rp {{ "{:,.0f}".format(totals.pemasukan).replace(',', '.') }}</td>
-          <td class="amount" style="color: #c62828; font-size: 1rem;">Rp {{ "{:,.0f}".format(totals.pengeluaran).replace(',', '.') }}</td>
+          <td class="amount" style="color: #2e7d32; font-size: 1rem; text-align: right;">Rp {{ "{:,.0f}".format(full_pemasukan).replace(',', '.') }}</td>
+          <td class="amount" style="color: #c62828; font-size: 1rem; text-align: right;">Rp {{ "{:,.0f}".format(full_pengeluaran).replace(',', '.') }}</td>
+          <td class="amount" style="color: #111; text-align: right;">Rp {{ "{:,.0f}".format(total_balance).replace(',', '.') }}</td>
         </tr>
       </tfoot>
+      <tr style="background: #f9fafb; font-size: 0.85rem; color: #555;">
+        <td colspan="{{ 5 + v_len }}" style="padding: 12px 20px; text-align: left;">Ringkasan total menghitung semua transaksi yang cocok dengan filter tanggal dan kategori, bukan hanya halaman yang ditampilkan.</td>
+      </tr>
       {% endif %}
     </table>
   </div>
@@ -149,6 +183,23 @@
   <div class="ent-pagination">
     <div id="ent-count-info" style="font-size: 0.85rem; color: #777;"></div>
     <div id="report-pagination-container"></div>
+  </div>
+</div>
+
+<!-- Custom Reset Confirmation Modal -->
+<div id="resetConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(5px); z-index:2000; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:white; width:100%; max-width:450px; border-radius:24px; padding:30px; box-shadow:0 25px 50px rgba(0,0,0,0.2); text-align:center; animation:modalIn 0.3s ease-out;">
+    <div style="background:#fff5f5; width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; color:#ef4444;">
+      <i class="material-icons-round" style="font-size:32px;">warning</i>
+    </div>
+    <h4 style="margin:0 0 10px; font-size:18px; font-weight:800; color:#111;">Konfirmasi Bersihkan Database</h4>
+    <p style="margin:0 0 25px; font-size:13px; color:#666; line-height:1.6;">
+      Tindakan ini akan <b>menghapus seluruh riwayat transaksi, batch payroll, pengajuan penarikan</b>, dan mengembalikan semua saldo anggota menjadi <b>Rp 0</b>. Tindakan ini tidak dapat dibatalkan!
+    </p>
+    <div style="display:flex; gap:12px;">
+      <button onclick="closeResetModal()" style="flex:1; background:#f3f4f6; border:none; padding:12px; font-weight:700; border-radius:12px; cursor:pointer; color:#4b5563; font-size:14px; transition:background 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">Batal</button>
+      <button onclick="executeDatabaseReset()" id="btnConfirmReset" style="flex:1; background:#ef4444; border:none; padding:12px; font-weight:700; border-radius:12px; cursor:pointer; color:white; font-size:14px; transition:all 0.2s; box-shadow:0 4px 12px rgba(239,68,68,0.2);" onmouseover="this.style.background='#dc2626'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='#ef4444'; this.style.transform='none';">Ya, Bersihkan</button>
+    </div>
   </div>
 </div>
 
@@ -160,16 +211,64 @@
         perPage: 10
     });
   });
+
+  function confirmResetDatabase() {
+    document.getElementById('resetConfirmModal').style.display = 'flex';
+  }
+
+  function closeResetModal() {
+    document.getElementById('resetConfirmModal').style.display = 'none';
+  }
+
+  function executeDatabaseReset() {
+    const btn = document.getElementById('btnConfirmReset');
+    btn.disabled = true;
+    btn.textContent = 'Membersihkan...';
+
+    fetch('/reports/finance/reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        window.location.reload();
+      } else {
+        alert('Gagal membersihkan database: ' + data.error);
+        btn.disabled = false;
+        btn.textContent = 'Ya, Bersihkan';
+      }
+    })
+    .catch(err => {
+      alert('Kesalahan jaringan: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Ya, Bersihkan';
+    });
+  }
+
+  // Tutup modal jika klik di luar
+  document.getElementById('resetConfirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeResetModal();
+  });
 </script>
 
 <style>
-  /* Layout tweaks for reports specifically */
-  .report-header { margin-bottom: 25px; }
-  .report-header h1 { font-size: 2rem; font-weight: 800; color: #6e0b0b; }
-  .filter-panel { background: #fff; border: 1px solid #ddd; border-radius: 15px; padding: 25px; margin-bottom: 25px; }
-  .filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: flex-end; }
-  .form-control { width: 100%; padding: 12px 16px; border: 1px solid #ccc; border-radius: 8px; }
-  .btn-submit { background: #6e0b0b; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; height: 46px; }
-  .report-info { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #eee; display: flex; gap: 30px; font-size: 0.85rem; font-weight: 600; color: #666; }
+  @keyframes modalIn { from{opacity:0; transform:scale(0.95) translateY(20px)} to{opacity:1; transform:scale(1) translateY(0)} }
+  
+  .summary-reports-grid .report-card-stat {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .summary-reports-grid .report-card-stat:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.05) !important;
+  }
+  .amount {
+    font-size: 13px;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 700;
+  }
 </style>
 {% endblock %}

@@ -4,39 +4,39 @@
 
 {% block dashboard_content %}
 <div class="withdrawal-container">
-    <!-- A. Withdrawal Analytics Cards (RESTORED) -->
+    <!-- A. Withdrawal Analytics Cards (RESTORED & UPGRADED) -->
     <div class="analytics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px;">
-        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
-                <i class="material-icons-round">pending_actions</i>
+        <div class="stat-card" style="background: #6e0b0b; padding: 25px 20px; border-radius: 24px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 10px 25px rgba(110,11,11,0.15); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+            <div style="background: rgba(255,255,255,0.15); width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <i class="material-icons-round" style="font-size:20px;">pending_actions</i>
             </div>
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Pending Requests</div>
-            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.pending }}</h3>
-            <div style="font-size: 0.75rem; opacity: 0.7;">Review Required</div>
+            <div style="font-size: 0.65rem; font-weight: 800; opacity: 0.85; text-transform: uppercase; letter-spacing:0.5px;">Pending Requests</div>
+            <h3 style="font-size: 1.8rem; font-weight: 800; margin: 6px 0;">{{ stats.pending }}</h3>
+            <div style="font-size: 0.7rem; opacity: 0.75; font-weight:600;">Review Required</div>
         </div>
-        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
-                <i class="material-icons-round">check_circle</i>
+        <div class="stat-card" style="background: white; border: 1px solid #f0e9e9; padding: 25px 20px; border-radius: 24px; color: #111; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+            <div style="background: #eefdf4; color: #27ae60; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <i class="material-icons-round" style="font-size:20px;">check_circle</i>
             </div>
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Approved Today</div>
-            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.approved_today }}</h3>
-            <div style="font-size: 0.75rem; opacity: 0.7;">Ready to Transfer</div>
+            <div style="font-size: 0.65rem; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing:0.5px;">Approved Today</div>
+            <h3 style="font-size: 1.8rem; font-weight: 800; margin: 6px 0; color: #27ae60;">{{ stats.approved_today }}</h3>
+            <div style="font-size: 0.7rem; color: #888; font-weight:600;">Ready to Transfer</div>
         </div>
-        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
-                <i class="material-icons-round">task_alt</i>
+        <div class="stat-card" style="background: white; border: 1px solid #f0e9e9; padding: 25px 20px; border-radius: 24px; color: #111; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+            <div style="background: #f8fafc; color: #475569; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <i class="material-icons-round" style="font-size:20px;">task_alt</i>
             </div>
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Completed</div>
-            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.completed }}</h3>
-            <div style="font-size: 0.75rem; opacity: 0.7;">Processed</div>
+            <div style="font-size: 0.65rem; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing:0.5px;">Completed</div>
+            <h3 style="font-size: 1.8rem; font-weight: 800; margin: 6px 0; color: #475569;">{{ stats.completed }}</h3>
+            <div style="font-size: 0.7rem; color: #888; font-weight:600;">Processed</div>
         </div>
-        <div class="stat-card" style="background: #6e0b0b; padding: 30px 20px; border-radius: 25px; color: white; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="background: rgba(255,255,255,0.1); width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
-                <i class="material-icons-round">cancel</i>
+        <div class="stat-card" style="background: white; border: 1px solid #f0e9e9; padding: 25px 20px; border-radius: 24px; color: #111; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: transform 0.3s;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+            <div style="background: #fff1f2; color: #ef4444; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <i class="material-icons-round" style="font-size:20px;">cancel</i>
             </div>
-            <div style="font-size: 0.7rem; font-weight: 700; opacity: 0.8; text-transform: uppercase;">Rejected</div>
-            <h3 style="font-size: 2rem; font-weight: 800; margin: 8px 0;">{{ stats.rejected }}</h3>
-            <div style="font-size: 0.75rem; opacity: 0.7;">Issues Found</div>
+            <div style="font-size: 0.65rem; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing:0.5px;">Rejected</div>
+            <h3 style="font-size: 1.8rem; font-weight: 800; margin: 6px 0; color: #ef4444;">{{ stats.rejected }}</h3>
+            <div style="font-size: 0.7rem; color: #888; font-weight:600;">Issues Found</div>
         </div>
     </div>
 
@@ -63,6 +63,18 @@
                         </thead>
                         <tbody>
                             {% for req in withdrawals %}
+                            {% set active_bal = "0" %}
+                            {% if req.processing_notes and "Saving Type ID:" in req.processing_notes %}
+                                {% set parts = req.processing_notes.split("Saving Type ID:") %}
+                                {% if parts|length > 1 %}
+                                    {% set st_id_str = parts[1].split(".")[0].strip() %}
+                                    {% for bal in req.member.saving_balances %}
+                                        {% if bal.saving_type_id|string == st_id_str %}
+                                            {% set active_bal = "{:,.0f}".format(bal.balance).replace(',', '.') %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endif %}
                             <tr class="clickable-row" 
                                 onclick="showWithdrawalDetail('{{ req.id }}')" 
                                 style="cursor: pointer;"
@@ -75,9 +87,11 @@
                                 data-holder="{{ req.account_holder }}"
                                 data-date="{{ req.request_date.strftime('%d %b %Y') }}"
                                 data-status="{{ req.approval_status }}"
+                                data-proof="{{ req.transfer_proof or '-' }}"
+                                data-balance="Rp {{ active_bal }}"
                                 data-member-bank="{{ req.member.bank_name or '-' }}"
-                                data-member-acc="{{ req.member.bank_account_no or '-' }}"
-                                data-member-holder="{{ req.member.bank_account_name or '-' }}">
+                                data-member-acc="{{ req.member.bank_account_number or req.member.bank_account_no or '-' }}"
+                                data-member-holder="{{ req.member.bank_account_name or req.member.full_name or '-' }}">
                                 <td>
                                     <div style="display: flex; flex-direction: column;">
                                         <strong style="color: #111;">{{ req.member.full_name }}</strong>
@@ -89,13 +103,21 @@
                                 <td style="text-align: center;">
                                     {% if req.approval_status == 'APPROVED' %}
                                     <span class="status-pill status-aktif" style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
-                                    {% elif req.approval_status == 'REJECTED' %}
-                                    <span class="status-pill status-tidak-aktif" style="padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
-                                    {% else %}
-                                    <span class="status-pill" style="background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
-                                    {% endif %}
-                                        {{ req.approval_status }}
+                                        Selesai
                                     </span>
+                                    {% elif req.approval_status == 'ACCEPTED' %}
+                                    <span class="status-pill" style="background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                        Diterima
+                                    </span>
+                                    {% elif req.approval_status == 'PROCESSING' %}
+                                    <span class="status-pill" style="background: #fef3c7; color: #d97706; border: 1px solid #fde68a; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                        Sedang Diproses
+                                    </span>
+                                    {% else %}
+                                    <span class="status-pill" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">
+                                        Menunggu Persetujuan
+                                    </span>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% else %}
@@ -163,56 +185,76 @@
                             <div style="font-size: 12px; color: #166534; font-weight: 700; margin-top: 2px;" id="member-acc-info">-</div>
                         </div>
 
-                        <!-- Status Timeline (REQ-228/229) -->
+                        <!-- Status Timeline (4-Tahap Terstruktur) -->
                         <div class="withdrawal-timeline" style="margin-bottom: 30px;">
+                            <!-- Tahap 1: Menunggu Persetujuan -->
                             <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
-                                <div class="step-dot active" style="width: 24px; height: 24px; border-radius: 50%; background: #22c55e; color: white; display: flex; align-items: center; justify-content: center; z-index: 2;"><i class="material-icons-round" style="font-size: 14px;">check</i></div>
-                                <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #6e0b0b;"></div>
-                                <div class="step-txt">
-                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Requested</div>
-                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;" id="side-date-full">12 Mei 2026, 09:15</div>
-                                </div>
-                            </div>
-                            <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
-                                <div class="step-dot current" style="width: 24px; height: 24px; border-radius: 50%; background: #6e0b0b; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2; box-shadow: 0 0 0 4px rgba(110, 11, 11, 0.1);">2</div>
+                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2;">1</div>
                                 <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #f3efec;"></div>
                                 <div class="step-txt">
-                                    <div style="font-size: 13px; font-weight: 800; color: #6e0b0b;">Approval Status</div>
-                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;">Waiting for admin review</div>
+                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Menunggu Persetujuan</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;" id="side-date-full">-</div>
                                 </div>
                             </div>
-                            <div class="timeline-step" style="display: flex; gap: 15px;">
-                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;">3</div>
+                            <!-- Tahap 2: Diterima -->
+                            <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
+                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2;">2</div>
+                                <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #f3efec;"></div>
                                 <div class="step-txt">
-                                    <div style="font-size: 13px; font-weight: 800; color: #111; opacity: 0.5;">Transfer Process</div>
-                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600; opacity: 0.5;">Pending</div>
+                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Diterima</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;">Disetujui Pengurus</div>
+                                </div>
+                            </div>
+                            <!-- Tahap 3: Sedang Diproses -->
+                            <div class="timeline-step" style="display: flex; gap: 15px; margin-bottom: 15px; position: relative;">
+                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2;">3</div>
+                                <div class="step-line" style="position: absolute; left: 11px; top: 24px; width: 2px; height: 30px; background: #f3efec;"></div>
+                                <div class="step-txt">
+                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Sedang Diproses</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;">Proses Transfer &amp; Bukti</div>
+                                </div>
+                            </div>
+                            <!-- Tahap 4: Selesai -->
+                            <div class="timeline-step" style="display: flex; gap: 15px;">
+                                <div class="step-dot" style="width: 24px; height: 24px; border-radius: 50%; background: #f3efec; color: #8c8282; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; z-index: 2;">4</div>
+                                <div class="step-txt">
+                                    <div style="font-size: 13px; font-weight: 800; color: #111;">Selesai</div>
+                                    <div style="font-size: 11px; color: #8c8282; font-weight: 600;">Selesai Ditransfer</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Upload Proof Area (REQ-230/231) -->
-                        <div class="upload-proof-area" style="margin-bottom: 25px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px;">Upload Bukti Transfer (Opsional)</label>
-                                <span style="font-size: 9px; background: #f0f9ff; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: 800;">OCR READY</span>
-                            </div>
-                            <div style="border: 2px dashed #eee; border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#6e0b0b'; this.style.background='#fff8f8';" onmouseout="this.style.borderColor='#eee'; this.style.background='transparent';">
-                                <i class="material-icons-round" style="font-size: 28px; color: #6e0b0b;">file_upload</i>
-                                <div style="font-size: 11px; font-weight: 700; color: #444; margin-top: 5px;">Klik untuk upload struk / screenshot</div>
-                                <p style="font-size: 9px; color: #8c8282; margin: 5px 0 0;">Sistem akan memvalidasi nominal otomatis</p>
-                            </div>
+                        <!-- Preview Transfer Proof (NEW) -->
+                        <div id="transfer-proof-preview-container" style="display: none; margin-bottom: 25px;">
+                            <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Bukti Transfer</label>
+                            <a id="proof-link" href="#" target="_blank">
+                                <img id="proof-img" src="" style="width: 100%; border-radius: 16px; border: 1px solid #eee; max-height: 180px; object-fit: cover;" />
+                            </a>
                         </div>
 
-                        <!-- Rejection Reason (REQ-232) -->
-                        <div id="rejection-reason-box" style="display: none; margin-bottom: 20px; animation: slideDown 0.3s ease-out;">
-                            <label style="font-size: 10px; font-weight: 800; color: #e11d48; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Catatan Penolakan (Wajib)</label>
-                            <textarea id="rejection-reason" placeholder="Berikan alasan penolakan untuk anggota..." style="width: 100%; height: 80px; padding: 12px; border: 2px solid #ffe4e6; border-radius: 12px; font-size: 12px; outline: none; transition: border-color 0.2s;"></textarea>
+                        <!-- Reference Number Area (NEW) -->
+                        <div id="transaction-reference-container" style="display: none; margin-bottom: 25px;">
+                            <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Nomor Referensi Transaksi (Opsional)</label>
+                            <input type="text" id="transaction-reference" placeholder="Masukkan nomor referensi..." style="width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 12px; font-size: 12px; outline: none; transition: border-color 0.2s;" />
+                        </div>
+
+                        <!-- Upload Proof Area (REQ-230/231 - MODIFIED) -->
+                        <div id="upload-proof-container" class="upload-proof-area" style="margin-bottom: 25px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <label style="font-size: 10px; font-weight: 800; color: #8c8282; text-transform: uppercase; letter-spacing: 0.5px;">Upload Bukti Transfer (Wajib)</label>
+                                <span style="font-size: 9px; background: #f0f9ff; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-weight: 800;">JPEG/PNG/PDF</span>
+                            </div>
+                            <input type="file" id="transfer-proof-file" accept="image/*,application/pdf" style="display: none;" onchange="handleFileSelect(this)">
+                            <div id="upload-zone" onclick="document.getElementById('transfer-proof-file').click()" style="border: 2px dashed #eee; border-radius: 16px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#6e0b0b'; this.style.background='#fff8f8';" onmouseout="this.style.borderColor='#eee'; this.style.background='transparent';">
+                                <i class="material-icons-round" style="font-size: 28px; color: #6e0b0b;">file_upload</i>
+                                <div id="upload-zone-text" style="font-size: 11px; font-weight: 700; color: #444; margin-top: 5px;">Klik untuk upload bukti transfer</div>
+                                <p style="font-size: 9px; color: #8c8282; margin: 5px 0 0;">Format: JPEG, PNG, PDF</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="action-footer" style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
-                        <button class="btn-reject" id="btn-reject-main" onclick="toggleRejectionReason()" style="padding: 14px; border-radius: 16px; border: 1px solid #e1d5d5; background: white; color: #ef4444; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#fff5f5';" onmouseout="this.style.background='white';">REJECT</button>
-                        <button class="btn-approve" style="padding: 14px; border-radius: 16px; border: none; background: #6e0b0b; color: white; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(110, 11, 11, 0.2);" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">APPROVE REQUEST</button>
+                    <div class="action-footer" style="display: block; margin-top: 15px;">
+                        <button class="btn-approve" id="btn-action-primary" style="width: 100%; padding: 14px; border-radius: 16px; border: none; background: #6e0b0b; color: white; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(110, 11, 11, 0.2);" onmouseover="this.style.transform='translateY(-2px)';" onmouseout="this.style.transform='translateY(0)';">TERIMA PENGAJUAN</button>
                     </div>
                 </div>
             </div>
@@ -238,8 +280,15 @@
         });
     });
 
+    let currentWithdrawalId = null;
+
     function showWithdrawalDetail(id) {
-        const row = event.currentTarget;
+        currentWithdrawalId = id;
+        const row = document.querySelector('tr[data-id="' + id + '"]');
+        if (!row) {
+            console.error('Row with id ' + id + ' not found.');
+            return;
+        }
         document.getElementById('sidebar-empty-state').style.display = 'none';
         document.getElementById('sidebar-content').style.display = 'block';
         
@@ -254,35 +303,321 @@
         // Member Registered Bank
         document.getElementById('member-bank-info').innerText = row.dataset.memberBank + ' (' + row.dataset.memberHolder + ')';
         document.getElementById('member-acc-info').innerText = row.dataset.memberAcc;
+        document.getElementById('side-balance').innerText = row.dataset.balance;
 
-        document.getElementById('side-date').innerText = row.dataset.date;
-        document.getElementById('side-date-full').innerText = row.dataset.date + ', 09:15';
+        document.getElementById('side-date-full').innerText = row.dataset.date + ', Pukul 09:15 WIB';
         
-        // Reset rejection box
-        document.getElementById('rejection-reason-box').style.display = 'none';
-        document.getElementById('btn-reject-main').innerText = 'REJECT';
+        // If already processed, hide actions
+        const status = row.dataset.status;
+        const proof = row.dataset.proof;
+        const footer = document.querySelector('.action-footer');
+        const primaryBtn = document.getElementById('btn-action-primary');
+        const uploadContainer = document.getElementById('upload-proof-container');
+        const refContainer = document.getElementById('transaction-reference-container');
+        const previewContainer = document.getElementById('transfer-proof-preview-container');
         
-        // Update Buttons Actions (Placeholder)
-        console.log("Withdrawal ID:", id, "Status:", row.dataset.status);
+        // Hide/Show containers based on status
+        if (status === 'APPROVED') {
+            footer.style.display = 'none';
+            uploadContainer.style.display = 'none';
+            refContainer.style.display = 'none';
+            if (proof && proof !== '-') {
+                previewContainer.style.display = 'block';
+                document.getElementById('proof-img').src = proof;
+                document.getElementById('proof-link').href = proof;
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        } else {
+            previewContainer.style.display = 'none';
+            if (status === 'PROCESSING') {
+                footer.style.display = 'block';
+                uploadContainer.style.display = 'block';
+                refContainer.style.display = 'block';
+                
+                // Reset file input and reference number
+                document.getElementById('transfer-proof-file').value = "";
+                document.getElementById('upload-zone-text').innerText = "Klik untuk upload bukti transfer";
+                document.getElementById('upload-zone').style.borderColor = "#eee";
+                document.getElementById('upload-zone').style.background = "transparent";
+                document.getElementById('transaction-reference').value = "";
+
+                primaryBtn.innerText = 'SELESAIKAN PROSES';
+                primaryBtn.style.background = '#10b981';
+                primaryBtn.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.2)';
+                primaryBtn.setAttribute('onclick', 'completeWithdrawal()');
+                primaryBtn.disabled = true; // Disabled until file chosen
+                primaryBtn.style.opacity = '0.5';
+                primaryBtn.style.cursor = 'not-allowed';
+            } else if (status === 'ACCEPTED') {
+                footer.style.display = 'block';
+                uploadContainer.style.display = 'none';
+                refContainer.style.display = 'none';
+                
+                primaryBtn.innerText = 'PROSES SEKARANG';
+                primaryBtn.style.background = '#0284c7';
+                primaryBtn.style.boxShadow = '0 4px 15px rgba(2, 132, 199, 0.2)';
+                primaryBtn.setAttribute('onclick', 'processWithdrawal()');
+                primaryBtn.disabled = false;
+                primaryBtn.style.opacity = '1';
+                primaryBtn.style.cursor = 'pointer';
+            } else {
+                // PENDING
+                footer.style.display = 'block';
+                uploadContainer.style.display = 'none';
+                refContainer.style.display = 'none';
+                
+                primaryBtn.innerText = 'TERIMA PENGAJUAN';
+                primaryBtn.style.background = '#6e0b0b';
+                primaryBtn.style.boxShadow = '0 4px 15px rgba(110, 11, 11, 0.2)';
+                primaryBtn.setAttribute('onclick', 'acceptWithdrawal()');
+                primaryBtn.disabled = false;
+                primaryBtn.style.opacity = '1';
+                primaryBtn.style.cursor = 'pointer';
+            }
+        }
+
+        // Update timeline based on status
+        const timelineSteps = document.querySelectorAll('.withdrawal-timeline .timeline-step');
+        if (timelineSteps.length >= 4) {
+            const step1 = timelineSteps[0];
+            const step2 = timelineSteps[1];
+            const step3 = timelineSteps[2];
+            const step4 = timelineSteps[3];
+
+            // Reset helper
+            function resetStep(step, num, defaultSub) {
+                const dot = step.querySelector('.step-dot');
+                dot.className = 'step-dot';
+                dot.style.background = '#f3efec';
+                dot.style.color = '#8c8282';
+                dot.style.boxShadow = 'none';
+                dot.innerHTML = num;
+
+                const textDivs = step.querySelectorAll('.step-txt div');
+                textDivs[0].style.color = '#111';
+                textDivs[0].style.opacity = '0.5';
+                if (textDivs[1]) {
+                    textDivs[1].innerText = defaultSub;
+                    textDivs[1].style.color = '#8c8282';
+                    textDivs[1].style.opacity = '0.5';
+                }
+            }
+
+            function setStepActive(step) {
+                const dot = step.querySelector('.step-dot');
+                dot.className = 'step-dot active';
+                dot.style.background = '#22c55e';
+                dot.style.color = 'white';
+                dot.innerHTML = '<i class="material-icons-round" style="font-size: 14px;">check</i>';
+
+                const textDivs = step.querySelectorAll('.step-txt div');
+                textDivs[0].style.color = '#111';
+                textDivs[0].style.opacity = '1';
+                if (textDivs[1]) {
+                    textDivs[1].style.color = '#22c55e';
+                    textDivs[1].style.opacity = '1';
+                }
+            }
+
+            function setStepCurrent(step, currentSub) {
+                const dot = step.querySelector('.step-dot');
+                dot.className = 'step-dot current';
+                dot.style.background = '#6e0b0b';
+                dot.style.color = 'white';
+                dot.style.boxShadow = '0 0 0 4px rgba(110, 11, 11, 0.1)';
+
+                const textDivs = step.querySelectorAll('.step-txt div');
+                textDivs[0].style.color = '#6e0b0b';
+                textDivs[0].style.opacity = '1';
+                if (textDivs[1]) {
+                    textDivs[1].innerText = currentSub;
+                    textDivs[1].style.color = '#6e0b0b';
+                    textDivs[1].style.opacity = '1';
+                }
+            }
+
+            resetStep(step1, '1', 'Diajukan oleh anggota');
+            resetStep(step2, '2', 'Menunggu persetujuan pengurus');
+            resetStep(step3, '3', 'Menunggu proses transfer');
+            resetStep(step4, '4', 'Belum diselesaikan');
+
+            if (status === 'PENDING') {
+                setStepCurrent(step1, 'Menunggu persetujuan pengurus');
+            } else if (status === 'ACCEPTED') {
+                setStepActive(step1);
+                setStepCurrent(step2, 'Diterima oleh pengurus');
+            } else if (status === 'PROCESSING') {
+                setStepActive(step1);
+                setStepActive(step2);
+                setStepCurrent(step3, 'Sedang diproses transfer');
+            } else if (status === 'APPROVED') {
+                setStepActive(step1);
+                setStepActive(step2);
+                setStepActive(step3);
+                setStepActive(step4);
+                
+                const textDivs = step4.querySelectorAll('.step-txt div');
+                if (textDivs[1]) {
+                    textDivs[1].innerText = 'Selesai ditransfer & bukti dikirim';
+                }
+            }
+        }
+        
+        console.log("Withdrawal ID:", id, "Status:", status);
     }
 
-    function toggleRejectionReason() {
-        const box = document.getElementById('rejection-reason-box');
-        const btn = document.getElementById('btn-reject-main');
-        if (box.style.display === 'none') {
-            box.style.display = 'block';
-            btn.innerText = 'CONFIRM REJECT';
-            btn.style.background = '#ef4444';
-            btn.style.color = 'white';
+    function handleFileSelect(fileInput) {
+        const primaryBtn = document.getElementById('btn-action-primary');
+        const uploadZoneText = document.getElementById('upload-zone-text');
+        const uploadZone = document.getElementById('upload-zone');
+        
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            uploadZoneText.innerText = "File Terpilih: " + file.name;
+            uploadZone.style.borderColor = "#10b981";
+            uploadZone.style.background = "#f0fdf4";
+            
+            // Enable primary action button
+            primaryBtn.disabled = false;
+            primaryBtn.style.opacity = '1';
+            primaryBtn.style.cursor = 'pointer';
         } else {
-            // Process rejection here
-            const reason = document.getElementById('rejection-reason').value;
-            if (!reason) {
-                alert("Harap isi alasan penolakan!");
-                return;
-            }
-            alert("Pengajuan ditolak dengan alasan: " + reason);
+            uploadZoneText.innerText = "Klik untuk upload bukti transfer";
+            uploadZone.style.borderColor = "#eee";
+            uploadZone.style.background = "transparent";
+            
+            // Disable primary action button
+            primaryBtn.disabled = true;
+            primaryBtn.style.opacity = '0.5';
+            primaryBtn.style.cursor = 'not-allowed';
         }
+    }
+
+    function acceptWithdrawal() {
+        if (!currentWithdrawalId) return;
+        if (!confirm('Apakah Anda yakin ingin MENERIMA pengajuan penarikan ini?\n\nStatus akan berubah menjadi "Diterima" dan notifikasi akan dikirim ke aplikasi mobile anggota.')) return;
+
+        const primaryBtn = document.getElementById('btn-action-primary');
+        const originalText = primaryBtn.innerText;
+        primaryBtn.innerText = 'SEDANG MEMPROSES...';
+        primaryBtn.disabled = true;
+        primaryBtn.style.opacity = '0.7';
+        primaryBtn.style.cursor = 'wait';
+
+        fetch('/finance/withdraw/' + currentWithdrawalId + '/accept', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Pemberitahuan: Pengajuan penarikan telah berhasil diterima. Anggota akan mendapatkan notifikasi real-time.');
+                location.reload();
+            } else {
+                alert('Gagal: ' + data.error);
+                primaryBtn.innerText = originalText;
+                primaryBtn.disabled = false;
+                primaryBtn.style.opacity = '1';
+                primaryBtn.style.cursor = 'pointer';
+            }
+        })
+        .catch(err => {
+            alert('Terjadi kesalahan koneksi');
+            primaryBtn.innerText = originalText;
+            primaryBtn.disabled = false;
+            primaryBtn.style.opacity = '1';
+            primaryBtn.style.cursor = 'pointer';
+        });
+    }
+
+    function processWithdrawal() {
+        if (!currentWithdrawalId) return;
+        if (!confirm('Apakah Anda yakin ingin mulai memproses penarikan ini?\n\nStatus akan berubah menjadi "Sedang Diproses" dan notifikasi akan dikirim ke aplikasi mobile anggota.')) return;
+
+        const primaryBtn = document.getElementById('btn-action-primary');
+        const originalText = primaryBtn.innerText;
+        primaryBtn.innerText = 'SEDANG MEMPROSES...';
+        primaryBtn.disabled = true;
+        primaryBtn.style.opacity = '0.7';
+        primaryBtn.style.cursor = 'wait';
+
+        fetch('/finance/withdraw/' + currentWithdrawalId + '/process', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Pemberitahuan: Penarikan sedang dalam proses transfer. Anggota akan mendapatkan notifikasi real-time.');
+                location.reload();
+            } else {
+                alert('Gagal: ' + data.error);
+                primaryBtn.innerText = originalText;
+                primaryBtn.disabled = false;
+                primaryBtn.style.opacity = '1';
+                primaryBtn.style.cursor = 'pointer';
+            }
+        })
+        .catch(err => {
+            alert('Terjadi kesalahan koneksi');
+            primaryBtn.innerText = originalText;
+            primaryBtn.disabled = false;
+            primaryBtn.style.opacity = '1';
+            primaryBtn.style.cursor = 'pointer';
+        });
+    }
+
+    function completeWithdrawal() {
+        if (!currentWithdrawalId) return;
+        
+        const fileInput = document.getElementById('transfer-proof-file');
+        if (fileInput.files.length === 0) {
+            alert('Silakan unggah bukti transfer terlebih dahulu!');
+            return;
+        }
+
+        if (!confirm('Apakah Anda yakin ingin menyelesaikan penarikan ini?\n\nBukti transfer akan dikirim ke anggota dan saldo simpanan mereka langsung terpotong.')) return;
+
+        const primaryBtn = document.getElementById('btn-action-primary');
+        const originalText = primaryBtn.innerText;
+        primaryBtn.innerText = 'SEDANG MENGIRIM & MENYELESAIKAN...';
+        primaryBtn.disabled = true;
+        primaryBtn.style.opacity = '0.7';
+        primaryBtn.style.cursor = 'wait';
+
+        const formData = new FormData();
+        formData.append('transfer_proof', fileInput.files[0]);
+        formData.append('reference_number', document.getElementById('transaction-reference').value);
+
+        fetch('/finance/withdraw/' + currentWithdrawalId + '/complete', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Pemberitahuan: Penarikan berhasil diselesaikan. Bukti transfer telah terkirim dan saldo anggota telah berhasil didebit.');
+                location.reload();
+            } else {
+                alert('Gagal: ' + data.error);
+                primaryBtn.innerText = originalText;
+                primaryBtn.disabled = false;
+                primaryBtn.style.opacity = '1';
+                primaryBtn.style.cursor = 'pointer';
+            }
+        })
+        .catch(err => {
+            alert('Terjadi kesalahan koneksi');
+            primaryBtn.innerText = originalText;
+            primaryBtn.disabled = false;
+            primaryBtn.style.opacity = '1';
+            primaryBtn.style.cursor = 'pointer';
+        });
     }
 </script>
 

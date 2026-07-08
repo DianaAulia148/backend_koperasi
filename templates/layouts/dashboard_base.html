@@ -856,7 +856,7 @@ class SmartTable {
         </a>
 
         <div class="nav-section">ANGGOTA</div>
-        <a href="/registration" class="nav-item {% if active_menu == 'registration' %}active{% endif %}" data-tooltip="Antrean Pendaftaran">
+        <a href="/onboarding/registration" class="nav-item {% if active_menu == 'registration' %}active{% endif %}" data-tooltip="Antrean Pendaftaran">
           <div class="nav-item-left">
             <i class="material-icons-round nav-icon">person_add</i>
             <span class="nav-item-text">Antrean Pendaftaran</span>
@@ -869,6 +869,12 @@ class SmartTable {
           <div class="nav-item-left">
             <i class="material-icons-round nav-icon">groups</i>
             <span class="nav-item-text">Manajemen Anggota</span>
+          </div>
+        </a>
+        <a href="/onboarding/resignations" class="nav-item {% if active_menu == 'resignations' %}active{% endif %}" data-tooltip="Pengunduran Diri">
+          <div class="nav-item-left">
+            <i class="material-icons-round nav-icon">person_remove</i>
+            <span class="nav-item-text">Pengunduran Diri</span>
           </div>
         </a>
 
@@ -1459,9 +1465,6 @@ class SmartTable {
         overlay.classList.toggle('active');
       }
     </script>
-</body>
 
-    </html>
-
-
+    {% block extra_js %}{% endblock %}
     {% endblock %}

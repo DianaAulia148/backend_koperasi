@@ -395,7 +395,17 @@
           </span>
         </div>
 
-        <form id="ocr-update-form" action="{{ url_for('onboarding.registration_detail', reg_id=reg.id) }}" method="POST">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="ocr-field-group">
+               <label class="ocr-label">Email Pendaftar</label>
+               <input type="text" class="ocr-input" value="{{ reg.mobile_user.email if (reg.mobile_user and reg.mobile_user.email) else '-' }}" readonly>
+            </div>
+            <div class="ocr-field-group">
+               <label class="ocr-label">Nomor Telepon</label>
+               <input type="text" class="ocr-input" value="{{ reg.phone or '-' }}" readonly>
+            </div>
+          </div>
+
           <div class="ocr-field-group">
              <label class="ocr-label">Nomor Induk Kependudukan (NIK)</label>
              <div class="ocr-input-wrap">
@@ -428,15 +438,56 @@
             </div>
           </div>
 
-          <div class="ocr-field-group">
-             <label class="ocr-label">Tanggal Lahir</label>
-             <input type="text" name="ocr_birth_date" class="ocr-input" value="{{ reg.ocr_birth_date or '' }}" readonly>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="ocr-field-group">
+               <label class="ocr-label">Tanggal Lahir</label>
+               <input type="text" name="ocr_birth_date" class="ocr-input" value="{{ reg.ocr_birth_date or '' }}" readonly>
+            </div>
+            <div class="ocr-field-group">
+               <label class="ocr-label">Agama</label>
+               <input type="text" name="ocr_religion" class="ocr-input" value="{{ reg.ocr_religion or '-' }}" readonly>
+            </div>
           </div>
 
           <div class="ocr-field-group">
              <label class="ocr-label">Alamat Domisili</label>
              <textarea name="ocr_address" class="ocr-input" rows="3" readonly>{{ reg.ocr_address or '' }}</textarea>
           </div>
+
+          <!-- RENCANA SIMPANAN ANGGOTA -->
+          <div style="margin: 25px 0 15px 0; border-top: 1px dashed #ddd; padding-top: 15px;">
+            <div style="font-size: 10px; font-weight: 800; color: #6e0b0b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              <i class="material-icons-round" style="font-size: 14px;">savings</i> Rencana Simpanan Anggota
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div class="ocr-field-group">
+                 <label class="ocr-label">Jenis Simpanan</label>
+                 <input type="text" class="ocr-input" value="{{ reg.savings_type or 'Simpanan Wajib' }}" readonly>
+              </div>
+              <div class="ocr-field-group">
+                 <label class="ocr-label">Nominal Simpanan Pertama</label>
+                 <input type="text" class="ocr-input" value="{% if reg.savings_amount %}Rp {{ '{:,.0f}'.format(reg.savings_amount).replace(',', '.') }}{% else %}Rp 100.000{% endif %}" readonly>
+              </div>
+            </div>
+          </div>
+
+          <!-- INFORMASI REKENING BANK -->
+          <div style="margin: 15px 0; border-top: 1px dashed #ddd; padding-top: 15px;">
+            <div style="font-size: 10px; font-weight: 800; color: #6e0b0b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+              <i class="material-icons-round" style="font-size: 14px;">account_balance</i> Informasi Rekening Bank
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+              <div class="ocr-field-group">
+                 <label class="ocr-label">Nama Bank</label>
+                 <input type="text" class="ocr-input" value="{{ reg.bank_name or '-' }}" readonly>
+              </div>
+              <div class="ocr-field-group">
+                 <label class="ocr-label">Nomor Rekening</label>
+                 <input type="text" class="ocr-input" value="{{ reg.bank_account_number or '-' }}" readonly>
+              </div>
+            </div>
+          </div>
+
           
           <input type="hidden" name="action" id="form-action" value="update">
         </form>
@@ -458,10 +509,7 @@
            <button class="btn-ent btn-ent-edit" id="edit-toggle-btn" onclick="toggleManualEdit()">
              <i class="material-icons-round">edit</i> Edit Manual Data
            </button>
-           <form id="retry-ocr-form" action="{{ url_for('onboarding.retry_ocr', reg_id=reg.id) }}" method="POST" style="display: none;"></form>
-           <button class="btn-ent btn-ent-retry" onclick="if(confirm('Apakah Anda yakin ingin mengulang scan OCR?')) document.getElementById('retry-ocr-form').submit();">
-             <i class="material-icons-round">autorenew</i> Retry OCR Scan
-           </button>
+
            <button class="btn-ent btn-ent-reject" onclick="submitDecision('REJECT')">
              <i class="material-icons-round">block</i> Reject Registrasi
            </button>
@@ -478,96 +526,44 @@
         </div>
         {% endif %}
 
-        <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin-bottom: 15px; text-transform: uppercase;">Timeline Onboarding</div>
-        <div class="ent-timeline">
-           <!-- Step 1: Upload Dokumen -->
-           <div class="t-item done">
-             <div class="t-icon-wrap">
-               <i class="material-icons-round">cloud_done</i>
-             </div>
-             <div class="t-content">Upload Dokumen</div>
-             <div class="t-desc">Semua dokumen fisik berhasil diunggah.</div>
-             <span class="t-time">{{ reg.created_at.strftime('%H:%M, %d %b %Y') }}</span>
-           </div>
-
-           <!-- Step 2: OCR Processing -->
-           {% set ocr_done = (reg.ocr_confidence or 0) > 0 %}
-           <div class="t-item {% if ocr_done %}done{% else %}active{% endif %}">
-             <div class="t-icon-wrap">
-               <i class="material-icons-round">document_scanner</i>
-             </div>
-             <div class="t-content">OCR Processing</div>
-             <div class="t-desc">
-               {% if ocr_done %}
-                 AI mengekstraksi data. Akurasi: {{ ((reg.ocr_confidence or 0)*100)|round(1) }}%
-                 {% if reg.ocr_retry_count and reg.ocr_retry_count > 0 %} (Scan #{{ reg.ocr_retry_count }}){% endif %}
-               {% else %}
-                 Menunggu proses ekstraksi data...
-               {% endif %}
-             </div>
-             {% if reg.ocr_processed_at %}
-             <span class="t-time">{{ reg.ocr_processed_at.strftime('%H:%M, %d %b %Y') }}</span>
-             {% endif %}
-           </div>
-
-           <!-- Step 3: Duplicate Checking -->
-           {% set dup_done = reg.duplicate_check_status != 'PENDING' %}
-           <div class="t-item {% if dup_done %}done{% elif ocr_done %}active{% endif %}">
-             <div class="t-icon-wrap">
-               <i class="material-icons-round">supervised_user_circle</i>
-             </div>
-             <div class="t-content">Duplicate Checking</div>
-             <div class="t-desc">
-               Pengecekan NIK anggota ganda. Status: 
-               {% if reg.duplicate_check_status == 'CLEAN' %}
-                 <span style="color: #27ae60; font-weight: 700;">CLEAN</span>
-               {% elif reg.duplicate_check_status == 'SUSPICIOUS' %}
-                 <span style="color: #f08c00; font-weight: 700;">SUSPICIOUS</span>
-               {% elif reg.duplicate_check_status == 'DUPLICATED' %}
-                 <span style="color: #6e0b0b; font-weight: 700;">DUPLICATED</span>
-               {% else %}
-                 PENDING
-               {% endif %}
-             </div>
-           </div>
-
-           <!-- Step 4: Manual Review -->
-           {% set review_done = reg.verification_status == 'VERIFIED' or reg.approval_status != 'PENDING' %}
-           <div class="t-item {% if review_done %}done{% elif dup_done %}active{% endif %}">
-             <div class="t-icon-wrap">
-               <i class="material-icons-round">rate_review</i>
-             </div>
-             <div class="t-content">Manual Review</div>
-             <div class="t-desc">
-               {% if review_done %}
-                 Data terverifikasi oleh Pengurus.
-               {% else %}
-                 Menunggu review data oleh Pengurus...
-               {% endif %}
-             </div>
-           </div>
-
-           <!-- Step 5: Approval/Rejection -->
-           {% set app_done = reg.approval_status != 'PENDING' %}
-           <div class="t-item {% if app_done %}done{% elif review_done %}active{% endif %}">
-             <div class="t-icon-wrap">
-               <i class="material-icons-round">verified</i>
-             </div>
-             <div class="t-content">Approval / Rejection</div>
-             <div class="t-desc">
-               Keputusan pendaftaran: 
-               {% if reg.approval_status == 'APPROVED' %}
-                 <span style="color: #27ae60; font-weight: 700;">APPROVED</span>
-               {% elif reg.approval_status == 'REJECTED' %}
-                 <span style="color: #6e0b0b; font-weight: 700;">REJECTED</span>
-               {% else %}
-                 PENDING
-               {% endif %}
-             </div>
-             {% if reg.approved_at %}
-             <span class="t-time">{{ reg.approved_at.strftime('%H:%M, %d %b %Y') }}</span>
-             {% endif %}
-           </div>
+        <!-- Sistem otomatis menangani OCR Processing & Duplicate Check -->
+        <div style="margin-bottom: 20px;">
+          <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin-bottom: 12px; text-transform: uppercase;">Status Otomatis</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0fff8; border-radius: 10px; border: 1px solid #c3e6d8;">
+              <i class="material-icons-round" style="color: #27ae60; font-size: 18px;">document_scanner</i>
+              <div style="flex: 1;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: #27ae60;">OCR Processing</div>
+                <div style="font-size: 0.7rem; color: #555;">
+                  {% if reg.ocr_processed_at or (reg.ocr_confidence or 0) > 0 %}
+                    Selesai &mdash; Akurasi: {{ ((reg.ocr_confidence or 0)*100)|round(1) }}%
+                  {% else %}
+                    Belum diproses
+                  {% endif %}
+                </div>
+              </div>
+              <i class="material-icons-round" style="color: #27ae60; font-size: 16px;">check_circle</i>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f0fff8; border-radius: 10px; border: 1px solid #c3e6d8;">
+              <i class="material-icons-round" style="color: #27ae60; font-size: 18px;">supervised_user_circle</i>
+              <div style="flex: 1;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: #27ae60;">Duplicate Check</div>
+                <div style="font-size: 0.7rem; color: #555;">
+                  Status:
+                  {% if reg.duplicate_check_status == 'CLEAN' %}
+                    <span style="color: #27ae60; font-weight: 700;">CLEAN</span>
+                  {% elif reg.duplicate_check_status == 'SUSPICIOUS' %}
+                    <span style="color: #f08c00; font-weight: 700;">SUSPICIOUS</span>
+                  {% elif reg.duplicate_check_status == 'DUPLICATED' %}
+                    <span style="color: #6e0b0b; font-weight: 700;">DUPLICATED</span>
+                  {% else %}
+                    <span style="color: #888;">PENDING</span>
+                  {% endif %}
+                </div>
+              </div>
+              <i class="material-icons-round" style="color: #27ae60; font-size: 16px;">check_circle</i>
+            </div>
+          </div>
         </div>
 
         <div style="font-size: 0.75rem; font-weight: 800; color: #888; margin: 25px 0 10px; text-transform: uppercase;">Activity Logs</div>

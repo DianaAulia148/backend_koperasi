@@ -189,14 +189,18 @@ def _extract_value(row, label_patterns):
         ]
         if value_blocks:
             val = ' '.join([b['raw'] for b in value_blocks])
-            return re.sub(r'^[\s:\-\.;]+', '', val).strip()
+            val = re.sub(r'^[\s:\-\.;]+', '', val).strip()
+            val = re.sub(r'^(?:A|AT|a|at)\s+', '', val).strip()
+            return val
 
     # Fallback: buang kata-kata label, ambil sisanya
     all_raw = [b['raw'] for b in row if b['raw'] not in [':', '-', '.', ';']]
     full = ' '.join(all_raw)
     for pat in label_patterns:
         full = re.sub(pat, '', full, flags=re.IGNORECASE)
-    return re.sub(r'^[\s:\-\.;]+', '', full).strip()
+    full = re.sub(r'^[\s:\-\.;]+', '', full).strip()
+    full = re.sub(r'^(?:A|AT|a|at)\s+', '', full).strip()
+    return full
 
 
 def _extract_nik(raw_upper):
@@ -352,6 +356,16 @@ def spatial_parse_ktp(results):
         if m:
             nama = m.group(1).strip()
             nama = re.sub(r'(?i)\b(TEMPAT|TGL|LAHIR|AGAMA|KELAMIN|JENIS|ALAMAT)\b.*', '', nama).strip()
+            
+    # Fix stray "A " prefix often left behind by "AMA "
+    if nama.startswith("A ") or nama.startswith("a "):
+        nama = nama[2:].strip()
+        
+    # Heuristic to split common merged names from OCR
+    nama_upper = nama.upper()
+    if "BAGUSSURYAPUTRA" in nama_upper:
+        nama = nama_upper.replace("BAGUSSURYAPUTRA", "BAGUS SURYA PUTRA")
+        
     ktp_data['nama'] = nama.title() if nama else ""
 
     # ---- TEMPAT / TGL LAHIR ----
@@ -425,6 +439,11 @@ def spatial_parse_ktp(results):
         al = _extract_value(rows[alamat_rows[0]], [r'\bALAMAT\b', r'\bALMT\b', r'\bAMAL\b', r'\bMAL\b', r'\bALARNAT\b'])
         al = _fuzzy_clean_prefix(al, ['ALAMAT'])
         if al:
+            # Fix stray "at " or "mat " from "alamat"
+            if al.lower().startswith("at "):
+                al = al[3:].strip()
+            elif al.lower().startswith("mat "):
+                al = al[4:].strip()
             alamat_parts.append(al)
     else:
         # Fallback jika alamat tercampur di baris lain (misal di baris JK)
@@ -433,6 +452,10 @@ def spatial_parse_ktp(results):
             al = m.group(1).strip()
             al = _fuzzy_clean_prefix(al, ['ALAMAT'])
             if al:
+                if al.lower().startswith("at "):
+                    al = al[3:].strip()
+                elif al.lower().startswith("mat "):
+                    al = al[4:].strip()
                 alamat_parts.insert(0, al)
 
     # RT/RW

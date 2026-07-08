@@ -1,75 +1,784 @@
 {% extends 'layouts/dashboard_base.html' %}
 
 {% block dashboard_content %}
+<style>
+    .dq-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .dq-item {
+        background: white;
+        border-radius: 12px;
+        padding: 14px 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #f1f5f9;
+    }
+
+    .dq-item .dq-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .dq-item .dq-label {
+        font-size: 10px;
+        color: #94a3b8;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+
+    .dq-item .dq-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1e293b;
+    }
+
+    .warning-banner {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #b45309;
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12.5px;
+        font-weight: 600;
+    }
+
+    .warning-banner i {
+        font-size: 20px;
+        color: #d97706;
+    }
+
+    .corr-table-wrap {
+        overflow-x: auto;
+        margin-top: 12px;
+    }
+
+    .corr-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 12px;
+    }
+
+    .corr-table th {
+        background: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        padding: 12px;
+        text-align: center;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .corr-table th:first-child {
+        text-align: left;
+        min-width: 220px;
+    }
+
+    .corr-table td {
+        padding: 10px 12px;
+        text-align: center;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .corr-table td:first-child {
+        text-align: left;
+        font-weight: 600;
+        color: #334155;
+    }
+
+    .corr-table tbody tr:hover {
+        background: #f8fafc;
+    }
+
+    .r-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 11px;
+        min-width: 55px;
+        text-align: center;
+    }
+
+    .r-strong-pos {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .r-moderate-pos {
+        background: #fef9c3;
+        color: #854d0e;
+    }
+
+    .r-weak {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .r-moderate-neg {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .r-strong-neg {
+        background: #fecaca;
+        color: #7f1d1d;
+    }
+
+    .r-na {
+        background: #f1f5f9;
+        color: #94a3b8;
+    }
+
+    .n-label {
+        font-size: 10px;
+        color: #94a3b8;
+        display: block;
+        margin-top: 3px;
+    }
+
+    .legend-guide {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+
+    .legend-guide .lg-item {
+        font-size: 10.5px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+
+    .insight-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .insight-card-v2 {
+        background: white;
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #10b981;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .insight-card-v2.warning {
+        border-left-color: #f59e0b;
+    }
+
+    .insight-card-v2.danger {
+        border-left-color: #ef4444;
+    }
+
+    .insight-card-v2 .ic-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .insight-card-v2 .ic-header i {
+        font-size: 20px;
+    }
+
+    .insight-card-v2 .ic-header h4 {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0;
+    }
+
+    .insight-card-v2 .ic-body {
+        font-size: 12.5px;
+        color: #475569;
+        line-height: 1.6;
+    }
+
+    .insight-card-v2 .ic-body p {
+        margin: 4px 0;
+    }
+
+    .limitations-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 20px 24px;
+        margin-top: 20px;
+    }
+
+    .limitations-section h4 {
+        color: #334155;
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 12px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .limitations-section ul {
+        margin: 0;
+        padding-left: 20px;
+        color: #475569;
+        font-size: 12.5px;
+        line-height: 1.8;
+    }
+
+    .limitations-section ul li {
+        margin-bottom: 6px;
+    }
+
+    .limitations-section ul li:last-child {
+        margin-bottom: 0;
+    }
+
+    /* dq-icon state classes — replaces Jinja inline style to avoid CSS lint errors */
+    .dq-icon--partial {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .dq-icon--ok {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    /* ic-severity-icon color classes — replaces Jinja inline style */
+    .ic-severity-icon.ic-ok {
+        color: #10b981;
+    }
+
+    .ic-severity-icon.ic-warning {
+        color: #f59e0b;
+    }
+
+    .ic-severity-icon.ic-danger {
+        color: #ef4444;
+    }
+</style>
+
 <div class="analytics-container">
-    <div class="glass-card full-chart-container">
-        <div class="chart-header">
-            <h3>Korelasi: Inflasi vs Frekuensi Penarikan Anggota</h3>
-            <p class="text-muted">Menganalisis dampak kenaikan harga terhadap likuiditas simpanan.</p>
+    <!-- Header: Dynamic Indicator Selector + Date Filter + Export -->
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span
+                style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">📊
+                DATA: BI SCRAPING + DATABASE KOPERASI</span>
+            <span
+                style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰
+                Last Update: {{ last_updated }}</span>
         </div>
-        <div class="chart-body" style="height: 450px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <form method="GET" action="{{ url_for('analytics.economic_correlation') }}"
+                style="display: flex; gap: 10px; align-items: center; margin: 0; background: white; padding: 6px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+                <span style="font-size: 12px; font-weight: 700; color: #555;">Indikator Ekonomi:</span>
+                <select name="indicator" onchange="this.form.submit()"
+                    style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600; cursor: pointer;">
+                    <option value="inflasi" {% if selected_indicator=='inflasi' %}selected{% endif %}>Inflasi (%)
+                    </option>
+                    <option value="bi_rate" {% if selected_indicator=='bi_rate' %}selected{% endif %}>BI Rate (%)
+                    </option>
+                    <option value="jisdor" {% if selected_indicator=='jisdor' %}selected{% endif %}>Kurs JISDOR
+                        (USD/IDR)</option>
+                    <option value="food_prices" {% if selected_indicator=='food_prices' %}selected{% endif %}>Harga
+                        Pangan (Rupiah)</option>
+                </select>
+                <span style="font-size: 12px; font-weight: 700; color: #555; margin-left: 5px;">Periode:</span>
+                <input type="date" name="start_date"
+                    style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;"
+                    value="{{ start_date or '' }}">
+                <span style="color: #888; font-weight: bold;">-</span>
+                <input type="date" name="end_date"
+                    style="border: 1px solid #ddd; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-family: inherit; font-weight: 600;"
+                    value="{{ end_date or '' }}">
+                <button type="submit"
+                    style="background: #6e0b0b; color: white; border: none; padding: 6px 15px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;">Filter</button>
+            </form>
+            <a href="{{ url_for('economic.export_excel', indicator='correlation') }}?start_date={{ start_date }}&end_date={{ end_date }}"
+                style="background: #059669; color: white; padding: 6px 15px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                <i class="material-icons-round" style="font-size: 16px;">download</i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Data Quality & KPI Panel -->
+    <div class="dq-panel">
+        <div class="dq-item">
+            <div class="dq-icon" style="background: rgba(59,130,246,0.1); color: #3b82f6;"><i
+                    class="material-icons-round">calendar_month</i></div>
+            <div>
+                <div class="dq-label">Periode Analisis</div>
+                <div class="dq-value">{{ data_quality_info.total_months }} bulan</div>
+            </div>
+        </div>
+        <div class="dq-item">
+            <div class="dq-icon" style="background: rgba(16,185,129,0.1); color: #10b981;"><i
+                    class="material-icons-round">date_range</i></div>
+            <div>
+                <div class="dq-label">Rentang Data</div>
+                <div class="dq-value" style="font-size: 12px;">{{ data_quality_info.date_range }}</div>
+            </div>
+        </div>
+        <div class="dq-item">
+            <div class="dq-icon" style="background: rgba(139,92,246,0.1); color: #8b5cf6;"><i
+                    class="material-icons-round">sync</i></div>
+            <div>
+                <div class="dq-label">Data Berpasangan</div>
+                <div class="dq-value">{{ data_quality_info.paired_count }} records</div>
+            </div>
+        </div>
+        <div class="dq-item">
+            <div class="dq-icon {% if data_quality_info.is_partial %}dq-icon--partial{% else %}dq-icon--ok{% endif %}">
+                <i class="material-icons-round">{% if data_quality_info.is_partial %}pending_actions{% else
+                    %}check_circle{% endif %}</i></div>
+            <div>
+                <div class="dq-label">Bulan Berjalan</div>
+                <div class="dq-value" style="font-size: 12.5px;">{% if data_quality_info.is_partial %}{{
+                    data_quality_info.partial_month_label }} (Partial){% else %}Lengkap{% endif %}</div>
+            </div>
+        </div>
+        <div class="dq-item">
+            <div class="dq-icon" style="background: rgba(16,185,129,0.1); color: #10b981;"><i
+                    class="material-icons-round">savings</i></div>
+            <div>
+                <div class="dq-label">Suku Bunga Simpanan</div>
+                <div class="dq-value" style="font-size: 12.5px;">3.00% <span
+                        style="font-weight: normal; color: #94a3b8; font-size: 9.5px;">(Default Config)</span></div>
+            </div>
+        </div>
+        <div class="dq-item">
+            <div class="dq-icon" style="background: rgba(249,115,22,0.1); color: #f97316;"><i
+                    class="material-icons-round">percent</i></div>
+            <div>
+                <div class="dq-label">Rata-Rata Rasio Penarikan</div>
+                <div class="dq-value">{% if avg_withdrawal_ratio %}{{ avg_withdrawal_ratio }}%{% else %}-{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chart Container -->
+    <div class="glass-card full-chart-container" style="margin-bottom: 20px;">
+        <div class="chart-header">
+            <h3>Korelasi: {{ active_eco_label }} vs Likuiditas Koperasi</h3>
+            <p class="text-muted">Menyandingkan pergerakan indikator ekonomi makro yang dipilih dengan Net Flow, Total
+                Simpanan, dan Total Penarikan bulanan.</p>
+        </div>
+        <div class="chart-body" style="height: 440px;">
             <canvas id="correlationChart"></canvas>
         </div>
     </div>
 
-    <div class="glass-card insight-section">
-        <div class="insight-header" style="color: var(--primary-red);">
-            <i class="material-icons-round">query_stats</i>
-            <h3>Analisis Korelasi Otomatis</h3>
+    <!-- warning banner if observation is < 12 months -->
+    {% if data_quality_info.total_months < 12 %} <div class="warning-banner">
+        <i class="material-icons-round">warning</i>
+        <span>Data historis masih terbatas ({{ data_quality_info.total_months }} bulan / <12 bulan). Hasil korelasi
+                bersifat indikatif dan dapat berubah seiring bertambahnya data observasi.</span>
+</div>
+{% endif %}
+
+<!-- Lag Correlation Table -->
+<div class="glass-card" style="padding: 24px; margin-bottom: 20px;">
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="material-icons-round" style="color: #6e0b0b; font-size: 22px;">grid_on</i>
+            <h3 style="margin: 0; font-size: 15px; color: #1e293b;">Matriks Korelasi Pearson dengan Lag</h3>
         </div>
-        <div class="insight-list">
-            <div class="insight-item">
-                <div class="insight-text">{{ insight_1 | safe }}</div>
-            </div>
-            <div class="insight-item">
-                <div class="insight-text">Kenaikan <strong>BI Rate</strong> cenderung menahan laju penarikan simpanan sukarela dalam 3 bulan terakhir.</div>
-            </div>
+        <div class="legend-guide">
+            <span class="lg-item r-strong-pos">|r| ≥ 0.7: Kuat</span>
+            <span class="lg-item r-moderate-pos">0.3 ≤ |r| < 0.7: Sedang</span>
+                    <span class="lg-item r-weak">0.1 ≤ |r| < 0.3: Lemah</span>
+                            <span class="lg-item r-na">|r| < 0.1: Sangat Lemah</span>
         </div>
+    </div>
+    <p style="font-size: 12px; color: #64748b; margin: 0 0 12px 0;">
+        Nilai lag menunjukkan jeda waktu dalam bulan. Lag yang lebih tinggi membutuhkan data historis yang lebih panjang
+        agar representatif.
+    </p>
+
+    <div class="corr-table-wrap">
+        <table class="corr-table">
+            <thead>
+                <tr>
+                    <th>Pasangan Variabel</th>
+                    {% for lag in active_lags %}
+                    <th>Lag {{ lag }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in lag_correlation_table %}
+                <tr>
+                    <td>{{ row.metric }}</td>
+                    {% for lag in active_lags %}
+                    <td>
+                        {% set r = row['lag' ~ lag ~ '_r'] %}
+                        {% set n = row['lag' ~ lag ~ '_n'] %}
+                        {% set desc = row['lag' ~ lag ~ '_desc'] %}
+                        {% if r is none %}
+                        <span class="r-badge r-na">N/A</span>
+                        <span class="n-label">n={{ n }}</span>
+                        {% else %}
+                        {% set abs_r = r if r >= 0 else -r %}
+                        {% if abs_r >= 0.7 %}
+                        {% if r >= 0 %}
+                        <span class="r-badge r-strong-pos">{{ '%+.2f'|format(r) }}</span>
+                        {% else %}
+                        <span class="r-badge r-strong-neg">{{ '%+.2f'|format(r) }}</span>
+                        {% endif %}
+                        {% elif abs_r >= 0.3 %}
+                        {% if r >= 0 %}
+                        <span class="r-badge r-moderate-pos">{{ '%+.2f'|format(r) }}</span>
+                        {% else %}
+                        <span class="r-badge r-moderate-neg">{{ '%+.2f'|format(r) }}</span>
+                        {% endif %}
+                        {% elif abs_r >= 0.1 %}
+                        <span class="r-badge r-weak">{{ '%+.2f'|format(r) }}</span>
+                        {% else %}
+                        <span class="r-badge r-na">{{ '%+.2f'|format(r) }}</span>
+                        {% endif %}
+                        <span class="n-label">n={{ n }} · {{ desc }}</span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
+<!-- Structured Insights -->
+<div class="glass-card" style="padding: 24px; margin-bottom: 20px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+        <i class="material-icons-round" style="color: #6e0b0b; font-size: 22px;">psychology</i>
+        <h3 style="margin: 0; font-size: 15px; color: #1e293b;">Analisis Korelasi Eksploratif</h3>
+    </div>
+    <div class="insight-grid">
+        {% for item in correlation_insights %}
+        <div class="insight-card-v2 {{ item.severity }}">
+            <div>
+                <div class="ic-header">
+                    <i
+                        class="material-icons-round ic-severity-icon {% if item.severity == 'ok' %}ic-ok{% elif item.severity == 'warning' %}ic-warning{% else %}ic-danger{% endif %}">
+                        {% if item.result == 'Hubungan Sangat Lemah' %}info{% else %}{{ item.icon }}{% endif %}
+                    </i>
+                    <h4>{{ item.title }}</h4>
+                </div>
+                <div class="ic-body">
+                    <p><strong>Hasil:</strong> {{ item.result }} {% if item.result != 'Hubungan Sangat Lemah' %}(r = {{
+                        '%+.2f'|format(item.r) }}, Lag = {{ item.lag }}, n = {{ item.n }}){% endif %}</p>
+                    <p><strong>Interpretasi:</strong> {{ item.interpretation }}</p>
+                </div>
+            </div>
+            <div class="ic-body"
+                style="margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 8px; font-size: 11.5px; color: #64748b;">
+                <strong>Catatan:</strong> {{ item.note }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Limitations Section -->
+<div class="limitations-section">
+    <h4><i class="material-icons-round" style="font-size: 18px; color: #475569;">info</i> Keterbatasan Analisis &
+        Metodologi</h4>
+    <ul>
+        <li><strong>Korelasi Bukan Kausalitas:</strong> Nilai koefisien korelasi Pearson hanya mengukur hubungan linear.
+            Nilai korelasi yang tinggi tidak menunjukkan hubungan sebab-akibat langsung.</li>
+        <li><strong>Faktor Internal Koperasi Belum Dikontrol:</strong> Pola penarikan dan setoran anggota dapat
+            dipengaruhi kebijakan suku bunga simpanan internal koperasi atau program promo tertentu yang tidak
+            dimasukkan dalam model ini.</li>
+        <li><strong>Faktor Musiman Koperasi:</strong> Event tahunan koperasi (seperti Hari Raya Keagamaan, Tahun Ajaran
+            Baru, pembagian THR/Bonus) sering kali mendominasi fluktuasi Net Flow, mengaburkan korelasi murni dari
+            indikator ekonomi.</li>
+        <li><strong>Jumlah Observasi Terbatas:</strong> Dengan data yang masih terbatas, hasil analisis bersifat
+            indikatif dan sensitif terhadap fluktuasi jangka pendek.</li>
+        <li><strong>Analisis Berpasangan:</strong> Indikator harga pangan dan JISDOR yang berfluktuasi harian
+            dikalkulasikan menggunakan nilai rata-rata bulanan untuk dicocokkan dengan deret waktu bulanan koperasi.
+        </li>
+        <li><strong>Tujuan Exploratory Analysis:</strong> Dashboard ini ditujukan untuk mempermudah eksplorasi data awal
+            secara visual dan statistik, bukan untuk memvalidasi model inferensial yang lengkap.</li>
+    </ul>
+</div>
+</div>
+
+<!-- Hidden data elements -->
+<div id="correlation-data" data-months='{{ months | tojson }}' data-eco-values='{{ active_eco_values | tojson }}'
+    data-eco-label='{{ active_eco_label }}' data-eco-unit='{{ active_eco_unit }}'
+    data-withdrawal='{{ withdrawal_values | tojson }}' data-deposit='{{ deposit_values | tojson }}'
+    data-netflow='{{ net_flow_values | tojson }}' data-seasonal='{{ active_seasonal_markers | tojson }}'
+    data-partial='{{ "true" if data_quality_info.is_partial else "false" }}' style="display:none;"></div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
+        const dataEl = document.getElementById('correlation-data');
+        const months = JSON.parse(dataEl.getAttribute('data-months') || '[]');
+        const ecoValues = JSON.parse(dataEl.getAttribute('data-eco-values') || '[]');
+        const ecoLabel = dataEl.getAttribute('data-eco-label') || '';
+        const ecoUnit = dataEl.getAttribute('data-eco-unit') || '';
+        const withdrawalValues = JSON.parse(dataEl.getAttribute('data-withdrawal') || '[]');
+        const depositValues = JSON.parse(dataEl.getAttribute('data-deposit') || '[]');
+        const netFlowValues = JSON.parse(dataEl.getAttribute('data-netflow') || '[]');
+        const seasonalMarkers = JSON.parse(dataEl.getAttribute('data-seasonal') || '[]');
+        const isPartial = dataEl.getAttribute('data-partial') === 'true';
+
+        function formatRibuRp(val) {
+            if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.', ',') + ' M';
+            if (val >= 1000) return (val / 1000).toFixed(1).replace('.', ',') + ' jt';
+            if (val >= 1) return val.toLocaleString('id-ID') + ' rb';
+            if (val <= -1000000) return (val / 1000000).toFixed(1).replace('.', ',') + ' M';
+            if (val <= -1000) return (val / 1000).toFixed(1).replace('.', ',') + ' jt';
+            if (val <= -1) return val.toLocaleString('id-ID') + ' rb';
+            return '0';
+        }
+
+        // Compute Y1 (Ribu Rp) axis bounds dynamically from the 3 displayed monetary variables
+        const allMonetary = [...withdrawalValues, ...depositValues, ...netFlowValues];
+        const minMon = allMonetary.length > 0 ? Math.min(...allMonetary) : 0;
+        const maxMon = allMonetary.length > 0 ? Math.max(...allMonetary) : 1000;
+        const diffMon = maxMon - minMon;
+        const STEP = 50;
+        let y1Min, y1Max, stepSize;
+        if (diffMon > 0) {
+            const pad = diffMon * 0.35;
+            y1Min = Math.floor((minMon - pad) / STEP) * STEP;
+            y1Max = Math.ceil((maxMon + pad) / STEP) * STEP;
+            stepSize = Math.max(STEP, Math.round((y1Max - y1Min) / 8 / STEP) * STEP);
+        } else {
+            y1Min = Math.floor(minMon * 0.9 / STEP) * STEP;
+            y1Max = Math.ceil(maxMon * 1.1 / STEP) * STEP;
+            stepSize = Math.max(STEP, Math.round((y1Max - y1Min) / 8 / STEP) * STEP);
+        }
+
+        // Compute Y (Left Axis) bounds dynamically for the selected economic indicator
+        const minEco = ecoValues.length > 0 ? Math.min(...ecoValues) : 0;
+        const maxEco = ecoValues.length > 0 ? Math.max(...ecoValues) : 10;
+        const diffEco = maxEco - minEco;
+        let yMin, yMax;
+        if (diffEco > 0) {
+            const padEco = diffEco * 0.15;
+            yMin = Math.max(0, minEco - padEco);
+            yMax = maxEco + padEco;
+        } else {
+            yMin = Math.max(0, minEco * 0.95);
+            yMax = maxEco * 1.05;
+        }
+
         const ctx = document.getElementById('correlationChart').getContext('2d');
+
+        // Custom plugin for seasonal markers & partial month line
+        const annotationPlugin = {
+            id: 'customAnnotations',
+            afterDraw(chart) {
+                const xAxis = chart.scales.x;
+                const ctx = chart.ctx;
+
+                // Draw seasonal markers
+                seasonalMarkers.forEach(marker => {
+                    const x = xAxis.getPixelForValue(marker.month_idx);
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+                    ctx.lineWidth = 1.5;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, chart.chartArea.top);
+                    ctx.lineTo(x, chart.chartArea.bottom);
+                    ctx.stroke();
+
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
+                    ctx.font = 'bold 9px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(marker.event, x, chart.chartArea.top - 5);
+                    ctx.restore();
+                });
+
+                // Draw partial month vertical line
+                if (isPartial && months.length > 0) {
+                    const lastIdx = months.length - 1;
+                    const x = xAxis.getPixelForValue(lastIdx);
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(100, 116, 139, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, chart.chartArea.top);
+                    ctx.lineTo(x, chart.chartArea.bottom);
+                    ctx.stroke();
+
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = 'bold 9px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('⚠ Bulan Berjalan', x, chart.chartArea.top - 5);
+                    ctx.fillText('(Data Belum Lengkap)', x, chart.chartArea.top + 6);
+                    ctx.restore();
+                }
+            }
+        };
+
         new Chart(ctx, {
             type: 'line',
+            plugins: [annotationPlugin],
             data: {
-                labels: {{ months | tojson }},
+                labels: months,
                 datasets: [
                     {
-                        label: 'Inflasi (%)',
-                        data: {{ inflation_values | tojson }},
-                        borderColor: '#ef4444',
-                        yAxisID: 'y',
-                        tension: 0.4
-                    },
-                    {
-                        label: 'Withdrawal (Juta Rp)',
-                        data: {{ withdrawal_values | tojson }},
-                        borderColor: '#6e0b0b',
+                        label: 'Net Flow (Ribu Rp)',
+                        data: netFlowValues,
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                        fill: true,
                         yAxisID: 'y1',
                         tension: 0.4,
-                        borderDash: [5, 5]
+                        borderWidth: 3,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#7c3aed',
+                        order: 1,
+                        segment: isPartial && months.length > 1 ? {
+                            borderDash: ctx2 => ctx2.p1DataIndex === months.length - 1 ? [6, 4] : undefined,
+                        } : undefined
+                    },
+                    {
+                        label: 'Total Simpanan (Ribu Rp)',
+                        data: depositValues,
+                        borderColor: '#10b981',
+                        backgroundColor: 'transparent',
+                        yAxisID: 'y1',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#10b981',
+                        order: 2,
+                        segment: isPartial && months.length > 1 ? {
+                            borderDash: ctx2 => ctx2.p1DataIndex === months.length - 1 ? [6, 4] : undefined,
+                        } : undefined
+                    },
+                    {
+                        label: 'Total Penarikan (Ribu Rp)',
+                        data: withdrawalValues,
+                        borderColor: '#6e0b0b',
+                        backgroundColor: 'transparent',
+                        yAxisID: 'y1',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#6e0b0b',
+                        order: 3,
+                        segment: isPartial && months.length > 1 ? {
+                            borderDash: ctx2 => ctx2.p1DataIndex === months.length - 1 ? [6, 4] : undefined,
+                        } : undefined
+                    },
+                    {
+                        label: ecoLabel,
+                        data: ecoValues,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'transparent',
+                        yAxisID: 'y',
+                        tension: 0.4,
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#ef4444',
+                        order: 4
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: '#64748b',
+                            usePointStyle: true,
+                            padding: 12,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const label = context.dataset.label || '';
+                                const val = context.parsed.y;
+                                if (val === null) return label + ': -';
+                                if (context.dataset.yAxisID === 'y1') {
+                                    const rp = val * 1000;
+                                    return label.split(' (')[0] + ': Rp ' + rp.toLocaleString('id-ID');
+                                }
+                                return label.split(' (')[0] + ': ' + val.toLocaleString('id-ID') + ecoUnit;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     y: {
                         type: 'linear',
                         display: true,
                         position: 'left',
-                        title: { display: true, text: 'Inflasi (%)', color: '#ef4444' },
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                        min: yMin,
+                        max: yMax,
+                        title: { display: true, text: ecoLabel, color: '#ef4444', font: { size: 11, weight: 'bold' } },
+                        grid: { color: 'rgba(0, 0, 0, 0.04)' },
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: function (val) { return val.toLocaleString('id-ID') + ecoUnit; }
+                        }
                     },
                     y1: {
                         type: 'linear',
                         display: true,
                         position: 'right',
-                        title: { display: true, text: 'Withdrawal (Juta Rp)', color: '#6e0b0b' },
-                        grid: { drawOnChartArea: false }
+                        min: y1Min,
+                        max: y1Max,
+                        title: { display: true, text: 'Nominal Koperasi (Ribu Rp)', color: '#7c3aed', font: { size: 11, weight: 'bold' } },
+                        grid: { drawOnChartArea: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            stepSize: stepSize,
+                            callback: function (val) { return formatRibuRp(val); }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: '#94a3b8',
+                            maxRotation: 0,
+                            autoSkip: true,
+                            autoSkipPadding: 10
+                        }
                     }
                 }
             }

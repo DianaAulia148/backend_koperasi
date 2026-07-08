@@ -22,9 +22,10 @@
 
   <!-- Chart -->
   <div class="eco-card-white">
-    <div class="eco-card-header">
-      <h3>Tren Kurs JISDOR (IDR per 1 USD)</h3>
-    </div>
+            <div style="display:flex; align-items:center; gap:20px;">
+                <h3>Tren Kurs JISDOR (IDR per 1 USD)</h3>
+                <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+            </div>
     <div style="height:380px; position:relative;">
       <canvas id="jisdorChart"></canvas>
     </div>
@@ -102,6 +103,12 @@
   .eco-source-badge { font-size:10px; background:#f3f3f3; padding:4px 10px; border-radius:6px; font-weight:700; color:#555; }
 </style>
 
+<!-- Hidden data container to pass Jinja data to Javascript safely without triggering JS linter errors -->
+<div id="jisdor-chart-data" 
+     data-prices='[{% for item in data|reverse %}{"label": "{{ item.tanggal_str }}", "value": {{ item.kurs_jisdor }}}{% if not loop.last %},{% endif %}{% endfor %}]'
+     data-is-filtered="{% if start_date or end_date %}true{% else %}false{% endif %}"
+     style="display:none;"></div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   new SmartTable('jisdor-table', {
@@ -113,17 +120,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const labels = [];
   const values = [];
     
-  const rawData = [
-    {% for item in data|reverse %}
-      { label: '{{ item.tanggal_str }}', value: {{ item.kurs_jisdor }} },
-    {% endfor %}
-  ];
+  const dataEl = document.getElementById('jisdor-chart-data');
+  const rawData = JSON.parse(dataEl ? dataEl.getAttribute('data-prices') || '[]' : '[]');
+  const isFiltered = dataEl && dataEl.getAttribute('data-is-filtered') === 'true';
     
   let filteredData = rawData;
-  {% if not start_date and not end_date %}
+  if (!isFiltered) {
     const currentYear = new Date().getFullYear().toString();
     filteredData = rawData.filter(d => d.label.includes(currentYear));
-  {% endif %}
+  }
     
   filteredData.forEach(d => {
       labels.push(d.label);

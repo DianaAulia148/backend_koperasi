@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
-from models.user_model import db, MemberRegistration, MobileUser, Member, MemberSavingBalance, SavingTransaction, SavingType, WithdrawalRequest, ActivityLog, OTPVerification
+from models.user_model import db, MemberRegistration, MobileUser, Member, MemberSavingBalance, SavingTransaction, SavingType, WithdrawalRequest, ActivityLog, OTPVerification, DepositRequest, Notification
 from routes.auth_routes import mail
 from flask_mail import Message
 import random
@@ -180,6 +180,228 @@ def mobile_login():
             'is_verified': True
         }
     })
+
+# ================= CHANGE PASSWORD =================
+@api_bp.route('/auth/change-password', methods=['POST'])
+@token_required
+def change_password(current_user):
+    try:
+        # Support both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
+        old_password = data.get('old_password', '').strip()
+        new_password = data.get('new_password', '').strip()
+
+        if not old_password or not new_password:
+            return jsonify({'success': False, 'error': 'Kata sandi lama dan baru wajib diisi.'}), 400
+
+        # Verifikasi kata sandi lama
+        if current_user.password != hash_password(old_password):
+            return jsonify({'success': False, 'error': 'Kata sandi lama salah.'}), 400
+
+        # Validasi kata sandi baru minimal 8 karakter
+        if len(new_password) < 8:
+            return jsonify({'success': False, 'error': 'Kata sandi baru minimal 8 karakter.'}), 400
+
+        # Update password di database
+        current_user.password = hash_password(new_password)
+        db.session.commit()
+
+        # Generate token baru
+        token = jwt.encode({
+            'user_id': current_user.id,
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }, current_app.config['SECRET_KEY'], algorithm="HS256")
+
+        # Log activity
+        ActivityLog.log(
+            f"Mobile User Changed Password: {current_user.full_name}", 
+            user_id=None, 
+            table_name="mobile_users", 
+            reference_id=current_user.id
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Kata sandi berhasil diubah.',
+            'token': token
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
+
+# ================= MOBILE FORGOT PASSWORD (OTP-BASED) =================
+@api_bp.route('/forgot-password/send-otp', methods=['POST'])
+def mobile_forgot_password_send_otp():
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
+        email = data.get('email', '').strip()
+
+        if not email:
+            return jsonify({'success': False, 'error': 'Email wajib diisi.'}), 400
+
+        user = MobileUser.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({'success': False, 'error': 'Email tidak terdaftar.'}), 404
+
+        # Hasilkan OTP 6 digit
+        otp_code = str(random.randint(100000, 999999))
+        
+        # Simpan OTP ke OTPVerification (berlaku 15 menit)
+        expires_at = datetime.utcnow() + timedelta(minutes=15)
+        otp_entry = OTPVerification(
+            email=email,
+            otp_code=otp_code,
+            purpose='reset_password',
+            expires_at=expires_at
+        )
+        db.session.add(otp_entry)
+        db.session.commit()
+
+        # Kirim email OTP
+        msg = Message("Kode OTP Reset Kata Sandi - Koperasi Harkat",
+                      sender=current_app.config['MAIL_USERNAME'],
+                      recipients=[email])
+        msg.body = f"""Halo {user.full_name},
+
+Kode OTP untuk mengatur ulang kata sandi akun Anda adalah:
+
+{otp_code}
+
+Kode ini berlaku selama 15 menit. Mohon jangan sebarkan kode OTP ini kepada siapa pun.
+
+Salam hangat,
+Tim Koperasi Simpanan Harkat"""
+
+        app = current_app._get_current_object()
+        Thread(target=send_async_email, args=(app, msg)).start()
+
+        # Log Activity
+        ActivityLog.log(
+            f"Mobile User Requested Reset Password OTP: {user.full_name}", 
+            user_id=None, 
+            table_name="mobile_users", 
+            reference_id=user.id
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Kode OTP reset password telah dikirim ke email Anda.',
+            'debug_otp': otp_code # Ditambahkan untuk memudahkan debugging/testing
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f">>> ERROR send-otp: {str(e)}")
+        return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
+
+
+@api_bp.route('/forgot-password/verify-otp', methods=['POST'])
+def mobile_forgot_password_verify_otp():
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
+        email = data.get('email', '').strip()
+        otp_code = data.get('otp_code', '').strip()
+
+        if not email or not otp_code:
+            return jsonify({'success': False, 'error': 'Email dan kode OTP wajib diisi.'}), 400
+
+        # Cari OTP terbaru
+        otp_entry = OTPVerification.query.filter_by(
+            email=email,
+            otp_code=otp_code,
+            purpose='reset_password'
+        ).filter(OTPVerification.expires_at > datetime.utcnow()).order_by(OTPVerification.created_at.desc()).first()
+
+        if not otp_entry:
+            return jsonify({'success': False, 'error': 'Kode OTP salah atau sudah kadaluarsa.'}), 400
+
+        return jsonify({
+            'success': True,
+            'message': 'Kode OTP berhasil diverifikasi.'
+        })
+
+    except Exception as e:
+        print(f">>> ERROR verify-otp: {str(e)}")
+        return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
+
+
+@api_bp.route('/forgot-password/reset', methods=['POST'])
+def mobile_forgot_password_reset():
+    try:
+        if request.is_json:
+            data = request.get_json()
+        else:
+            data = request.form
+
+        email = data.get('email', '').strip()
+        otp_code = data.get('otp_code', '').strip()
+        new_password = data.get('new_password', '').strip()
+
+        if not email or not otp_code or not new_password:
+            return jsonify({'success': False, 'error': 'Semua kolom wajib diisi.'}), 400
+
+        # Verifikasi OTP kembali
+        otp_entry = OTPVerification.query.filter_by(
+            email=email,
+            otp_code=otp_code,
+            purpose='reset_password'
+        ).filter(OTPVerification.expires_at > datetime.utcnow()).order_by(OTPVerification.created_at.desc()).first()
+
+        if not otp_entry:
+            return jsonify({'success': False, 'error': 'Sesi verifikasi kadaluarsa. Silakan minta kode OTP baru.'}), 400
+
+        user = MobileUser.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({'success': False, 'error': 'User tidak ditemukan.'}), 404
+
+        # Cek jika password baru sama dengan password lama
+        new_hashed = hash_password(new_password)
+        if user.password == new_hashed:
+            return jsonify({
+                'success': False,
+                'error_code': 'SAME_PASSWORD',
+                'error': 'Kata sandi baru tidak boleh sama dengan kata sandi sebelumnya.'
+            }), 400
+
+        # Update password
+        user.password = new_hashed
+        
+        # Hapus OTP yang digunakan
+        db.session.delete(otp_entry)
+        db.session.commit()
+
+        # Log Activity
+        ActivityLog.log(
+            f"Mobile User Reset Password via OTP: {user.full_name}", 
+            user_id=None, 
+            table_name="mobile_users", 
+            reference_id=user.id
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Kata sandi berhasil diatur ulang. Silakan masuk.'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f">>> ERROR reset: {str(e)}")
+        return jsonify({'success': False, 'error': f'Terjadi kesalahan: {str(e)}'}), 500
+
+
 
 @api_bp.route('/verify-otp', methods=['POST'])
 def verify_otp():
@@ -526,6 +748,23 @@ def process_ocr():
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     file.save(file_path)
 
+    # ── Resize gambar besar dari HP agar OCR tidak lambat ──────────────
+    # Gambar HP bisa 12MP+ (4000x3000), PaddleOCR optimal di ~1200px lebar
+    try:
+        _img_check = cv2.imread(file_path)
+        if _img_check is not None:
+            h, w = _img_check.shape[:2]
+            MAX_DIM = 1600
+            if max(h, w) > MAX_DIM:
+                scale = MAX_DIM / max(h, w)
+                new_w, new_h = int(w * scale), int(h * scale)
+                _img_check = cv2.resize(_img_check, (new_w, new_h), interpolation=cv2.INTER_AREA)
+                cv2.imwrite(file_path, _img_check)
+                print(f">>> [RESIZE] {w}x{h} → {new_w}x{new_h}")
+    except Exception as _re:
+        print(f">>> [RESIZE] Skip: {_re}")
+    # ───────────────────────────────────────────────────────────────────
+
     try:
         results = []
         best_method = ""
@@ -556,6 +795,8 @@ def process_ocr():
                     raise Exception(f"{response.error.message}")
                     
                 if texts:
+                    # Extract raw text for storage and response
+                    raw_text = ' '.join([t.description for t in texts[1:]])
                     # Teks[0] adalah paragraf utuh, Teks[1:] adalah kata per kata.
                     # ✅ FIX: Sertakan bounding box dari GCP agar spatial_parser bisa bekerja!
                     results_raw = []
@@ -568,7 +809,7 @@ def process_ocr():
                     best_method = "Google Cloud Vision API (Akurasi Tinggi)"
                     mean_confidence = 0.99 # Google sangat akurat
                     parsed_data = parse_ktp_to_flask_format(results_raw)
-                    print(f">>> [GCP RAW TEXT]: {' '.join([t.description for t in texts[1:]])}")
+                    print(f">>> [GCP RAW TEXT]: {raw_text}")
                 else:
                     raise Exception("GCP Vision gagal membaca teks apa pun.")
             except Exception as e:
@@ -632,8 +873,10 @@ def process_ocr():
                             except Exception as conv_err:
                                 print(f">>> [WARN] Konversi baris OCR gagal: {conv_err}")
                 
+                # Extract raw text
                 raw_words = [t for (_, t, _) in results_raw]
-                print(f">>> [PADDLE RAW TEXT]: {' '.join(raw_words)}")
+                raw_text = ' '.join(raw_words)
+                print(f">>> [PADDLE RAW TEXT]: {raw_text}")
                 print(f">>> [PADDLE] Total {len(results_raw)} blok teks terdeteksi.")
                 
                 # Step 4: Parse dengan parser CANGGIH
@@ -743,6 +986,9 @@ def process_ocr():
                     existing_reg.ocr_engine = best_method
                     existing_reg.ocr_processed_at = datetime.utcnow()
                     existing_reg.ocr_retry_count = (existing_reg.ocr_retry_count or 0) + 1
+                    # Save raw OCR text if available
+                    if raw_text:
+                        existing_reg.ocr_raw_text = raw_text
                     db.session.commit()
                     print(f">>> [DB] OCR data diperbarui untuk MemberRegistration ID: {existing_reg.id}")
 
@@ -755,7 +1001,22 @@ def process_ocr():
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        return jsonify(parsed_data), 200
+        # Pastikan semua field utama selalu ada di response (tidak missing key)
+        response_data = {
+            'nik':            parsed_data.get('nik', ''),
+            'nama':           parsed_data.get('nama', ''),
+            'ttl':            parsed_data.get('ttl', ''),
+            'jenis_kelamin':  parsed_data.get('jenis_kelamin', ''),
+            'agama':          parsed_data.get('agama', ''),
+            'alamat':         parsed_data.get('alamat', ''),
+            'nik_valid':      parsed_data.get('nik_valid', False),
+            'nik_validation_message': parsed_data.get('nik_validation_message', ''),
+            'is_duplicate':   parsed_data.get('is_duplicate', False),
+            'duplicate_reason': parsed_data.get('duplicate_reason', ''),
+            'ocr_confidence': parsed_data.get('ocr_confidence', 0),
+        }
+        print(f">>> [FLUTTER RESPONSE] nik='{response_data['nik']}', nama='{response_data['nama']}', ttl='{response_data['ttl']}', nik_valid={response_data['nik_valid']}")
+        return jsonify(response_data), 200
     except Exception as e:
         print(f"OCR Error: {str(e)}")
         # Clean up files on error
@@ -850,11 +1111,10 @@ def register_member(current_user):
             nik_valid, nik_msg, _ = validate_nik_structure(submitted_nik, submitted_jk)
             if not nik_valid:
                 return jsonify({'success': False, 'error': f'Pendaftaran Ditolak: {nik_msg} Silakan scan ulang KTP Anda.'}), 400
-        
         # Fuzzy Matching Duplikat (NIK exact + Nama fuzzy 85%)
+        # Biarkan masuk ke web admin dengan status DUPLICATED agar bisa direview, jangan ditolak otomatis
         is_dup, dup_reason = fuzzy_check_duplicate(submitted_nik, submitted_nama, threshold=85)
-        if is_dup:
-            return jsonify({'success': False, 'error': f'Pendaftaran Ditolak: {dup_reason}'}), 400
+        duplicate_status_val = 'DUPLICATED' if is_dup else 'CLEAN'
 
         # 2. Handle File Uploads (Upload ke Cloudinary)
         file_paths = {}
@@ -890,9 +1150,21 @@ def register_member(current_user):
             ocr_nik=request.form.get('nik'), # Gunakan ocr_nik
             ocr_name=request.form.get('nama'), # Flutter kirim 'nama'
             ocr_address=request.form.get('alamat'), # Flutter kirim 'alamat'
+            ocr_religion=request.form.get('agama'),
             phone=request.form.get('phone'),
             ocr_gender=request.form.get('jenis_kelamin'),
             ocr_birth_date=request.form.get('ttl'),
+            ocr_nip=request.form.get('nip'),
+            ocr_jabatan=request.form.get('jabatan'),
+            ocr_confidence=request.form.get('ocr_confidence', type=float, default=0.0),
+            ocr_processed_at=datetime.utcnow(),
+            ocr_engine='PaddleOCR (Mobile Scan)',
+            savings_type=request.form.get('tipe_simpanan'),
+            savings_amount=request.form.get('nominal_simpanan', type=float),
+            bank_account_number=request.form.get('nomor_rekening'),
+            bank_name=request.form.get('nama_bank'),
+            duplicate_check_status=duplicate_status_val,
+            suspicious_reason=dup_reason if is_dup else None,
             status='pending',
             **file_paths
         )
@@ -922,6 +1194,14 @@ def get_member_status(user_id):
         # 2. Cek apakah user sudah jadi Member resmi di tabel 'members'
         member = Member.query.filter_by(mobile_user_id=user_id).first()
         if member:
+            from models.user_model import ResignationRequest
+            resign_req = ResignationRequest.query.filter_by(member_id=member.id, status='APPROVED').first()
+            if resign_req:
+                return jsonify({
+                    "status": "resigned",
+                    "full_name": member.full_name or full_name
+                })
+
             return jsonify({
                 "status": "approved", # Sesuai permintaan (approved/aktif)
                 "full_name": member.full_name or full_name,
@@ -965,11 +1245,98 @@ def get_member_status(user_id):
             "address": reg.ocr_address,
             "phone": reg.phone,
             "registration_details": {
-                "rejection_reason": reg.rejection_reason or ""
+                "rejection_reason": reg.rejection_reason or "",
+                "nik": reg.ocr_nik or "",
+                "full_name": reg.ocr_name or full_name,
+                "ttl": reg.ocr_birth_date or "",
+                "jenis_kelamin": reg.ocr_gender or "",
+                "agama": reg.ocr_religion or "",
+                "alamat": reg.ocr_address or "",
+                "nip": reg.ocr_nip or "",
+                "pekerjaan": reg.ocr_jabatan or "",
+                "tipe_simpanan": reg.savings_type or "",
+                "nominal_simpanan": reg.savings_amount or 0,
+                "nama_bank": reg.bank_name or "",
+                "nomor_rekening": reg.bank_account_number or "",
+                "ktp_path": reg.path_ktp or "",
+                "kartu_karyawan_path": reg.path_kartu_karyawan or "",
+                "pas_foto_path": reg.path_pas_foto or "",
+                "tanda_tangan_path": reg.path_tanda_tangan or ""
             }
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/update-profile', methods=['POST'])
+@token_required
+def update_member_profile(current_user):
+    try:
+        # Kita dukung multipart/form-data karena ada upload file
+        full_name = request.form.get('full_name')
+        phone = request.form.get('phone')
+        address = request.form.get('address')
+        
+        # Ambil data Member dan MobileUser
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        mobile_user = MobileUser.query.get(current_user.id)
+        
+        avatar_url = None
+        if 'avatar' in request.files:
+            file = request.files['avatar']
+            if file and file.filename != '':
+                print(f">>> DEBUG: Uploading avatar for user {current_user.id} to Cloudinary...")
+                upload_result = cloudinary.uploader.upload(
+                    file,
+                    folder="avatars",
+                    public_id=f"avatar_{current_user.id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                )
+                avatar_url = upload_result.get('secure_url')
+                print(f">>> DEBUG: Success uploading avatar! URL: {avatar_url}")
+
+        # Update MobileUser
+        if mobile_user:
+            if full_name:
+                mobile_user.full_name = full_name
+            if phone:
+                mobile_user.phone = phone
+            db.session.add(mobile_user)
+
+        # Update Member jika sudah disetujui jadi member resmi
+        if member:
+            if full_name:
+                member.full_name = full_name
+            if phone:
+                member.phone = phone
+            if address:
+                member.address = address
+            if avatar_url:
+                member.pas_foto = avatar_url
+                member.photo_profile = avatar_url
+            db.session.add(member)
+            
+        db.session.commit()
+
+        # Dapatkan avatar_path yang terupdate untuk direturn
+        final_avatar_path = avatar_url
+        if not final_avatar_path:
+            final_avatar_path = member.pas_foto if member else None
+
+        return jsonify({
+            'success': True,
+            'message': 'Profil berhasil diperbarui.',
+            'avatar_path': final_avatar_path,
+            'user': {
+                'full_name': mobile_user.full_name if mobile_user else (member.full_name if member else ""),
+                'phone': mobile_user.phone if mobile_user else (member.phone if member else ""),
+                'address': member.address if member else ""
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f">>> ERROR updating profile: {str(e)}")
+        return jsonify({'success': False, 'error': f'Gagal memperbarui profil: {str(e)}'}), 500
 
 
 @api_bp.route('/member/financial_details', methods=['GET'])
@@ -995,15 +1362,24 @@ def get_member_financial_details(current_user):
     tx_data = []
     for tx in transactions:
         st_name = SavingType.query.get(tx.saving_type_id).name if tx.saving_type_id else '-'
+        
+        # Cari transfer proof dari WithdrawalRequest yang terkait dengan saving_transactions ini
+        proof_url = '-'
+        if tx.transaction_source == 'WITHDRAWAL':
+            wd_req = WithdrawalRequest.query.filter_by(saving_transaction_id=tx.id).first()
+            if wd_req and wd_req.transfer_proof:
+                proof_url = wd_req.transfer_proof
+
         tx_data.append({
             'id': tx.id,
             'type': tx.transaction_type,
             'saving_type': st_name,
             'saving_type_id': tx.saving_type_id,
             'amount': float(tx.amount),
-            'date': tx.transaction_date.strftime('%Y-%m-%d %H:%M') if tx.transaction_date else '-',
+            'date': (tx.transaction_date.isoformat() + 'Z') if tx.transaction_date else '-',
             'status': tx.transaction_status,
-            'description': tx.description
+            'description': tx.description,
+            'transfer_proof': proof_url
         })
         
     # Analytics Calculations
@@ -1072,7 +1448,9 @@ def get_member_financial_details(current_user):
             'birth_date': member.birth_date.strftime('%Y-%m-%d') if member.birth_date else '-',
             'gender': member.gender,
             'jabatan': member.jabatan,
-            'pas_foto': member.pas_foto
+            'pas_foto': member.pas_foto,
+            'bank_name': member.bank_name or '-',
+            'bank_account_number': getattr(member, 'bank_account_no', getattr(member, 'bank_account_number', '-')) or '-'
         },
         'total_balance': total_balance,
         'balances': balance_data,
@@ -1117,6 +1495,17 @@ def request_deposit(current_user):
         )
 
         db.session.add(new_request)
+
+        # Notify
+        st = SavingType.query.get(saving_type_id)
+        st_name = st.name if st else "Simpanan"
+        Notification.create(
+            member_id=member.id,
+            title="Pengajuan Simpanan Dibuat",
+            message=f"Pengajuan simpanan {st_name} sebesar Rp {int(amount):,} telah dikirim.".replace(',', '.'),
+            notification_type="SAVING_PENDING"
+        )
+
         db.session.commit()
 
         return jsonify({
@@ -1127,24 +1516,388 @@ def request_deposit(current_user):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@api_bp.route('/member/withdraw', methods=['POST'])
+
+@api_bp.route('/member/deposit/<int:deposit_id>', methods=['PUT'])
 @token_required
-def request_withdrawal(current_user):
+def update_deposit(current_user, deposit_id):
     try:
         user_id = current_user.id
-        amount = request.form.get('amount')
-        bank_name = request.form.get('bank_name')
-        account_number = request.form.get('account_number')
-        account_holder = request.form.get('account_holder')
-        reason = request.form.get('reason', '')
-        saving_type_id = request.form.get('saving_type_id') # New field from Flutter
+        
+        # Support both form data and json
+        data = request.json if request.is_json else request.form
+        
+        amount = data.get('amount')
+        saving_type_id = data.get('saving_type_id')
+        source_bank = data.get('source_bank')
+        source_account_no = data.get('source_account_no')
 
-        if not all([user_id, amount, bank_name, account_number, account_holder]):
+        if not all([amount, saving_type_id, source_bank, source_account_no]):
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
 
         member = Member.query.filter_by(mobile_user_id=user_id).first()
         if not member:
             return jsonify({'success': False, 'error': 'Member not found'}), 404
+            
+        deposit_request = DepositRequest.query.filter_by(id=deposit_id, member_id=member.id).first()
+        if not deposit_request:
+            return jsonify({'success': False, 'error': 'Deposit request not found'}), 404
+
+        deposit_request.amount = amount
+        deposit_request.saving_type_id = saving_type_id
+        deposit_request.source_bank = source_bank
+        deposit_request.source_account_no = source_account_no
+        # User requested to KEEP approval_status, so we don't reset it to PENDING.
+
+        # Notify
+        st = SavingType.query.get(saving_type_id)
+        st_name = st.name if st else "Simpanan"
+        ntype = "SAVING_APPROVED" if deposit_request.approval_status == 'APPROVED' else "SAVING_PENDING"
+        title = "Pengajuan Simpanan Diperbarui" if deposit_request.approval_status != 'APPROVED' else "Detail Simpanan Diperbarui"
+        Notification.create(
+            member_id=member.id,
+            title=title,
+            message=f"Detail pengajuan simpanan {st_name} diperbarui menjadi Rp {int(amount):,}.".replace(',', '.'),
+            notification_type=ntype
+        )
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Deposit request updated successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET member/savings  – Daftar simpanan aktif milik anggota
+# ─────────────────────────────────────────────────────────────────────────────
+@api_bp.route('/member/savings', methods=['GET'])
+@token_required
+def get_member_savings(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        # Temukan info bank dari deposit request mana saja sebagai fallback
+        fallback_bank = getattr(member, 'bank_name', '') or ''
+        fallback_acc = getattr(member, 'bank_account_no', getattr(member, 'bank_account_number', '')) or ''
+        fallback_holder = getattr(member, 'bank_account_name', '') or getattr(member, 'full_name', '') or ''
+
+        # Jika masih kosong, cari dari deposit request apa saja milik anggota ini
+        if not fallback_bank or not fallback_acc:
+            any_dep = DepositRequest.query.filter(
+                DepositRequest.member_id == member.id,
+                DepositRequest.source_bank != None,
+                DepositRequest.source_bank != '',
+                DepositRequest.source_account_no != None,
+                DepositRequest.source_account_no != ''
+            ).first()
+            if any_dep:
+                fallback_bank = any_dep.source_bank
+                fallback_acc = any_dep.source_account_no
+                fallback_holder = any_dep.source_account_name or member.full_name or ''
+
+        # Simpanan wajib selalu ada (id biasanya 1, atau cari by code/name)
+        wajib_type = SavingType.query.filter(SavingType.name.ilike('%wajib%')).first()
+
+        # Semua pengajuan yang SUDAH DISETUJUI
+        approved = DepositRequest.query.filter_by(
+            member_id=member.id, approval_status='APPROVED'
+        ).all()
+        # Juga PENDING (sudah diajukan, menunggu persetujuan)
+        pending = DepositRequest.query.filter_by(
+            member_id=member.id, approval_status='PENDING'
+        ).all()
+
+        result = []
+
+        # Selalu sertakan simpanan wajib
+        if wajib_type:
+            balance_rec = MemberSavingBalance.query.filter_by(
+                member_id=member.id, saving_type_id=wajib_type.id
+            ).first()
+            result.append({
+                'id': None,
+                'saving_type_id': wajib_type.id,
+                'saving_type_name': wajib_type.name,
+                'status': 'ACTIVE',
+                'is_mandatory': True,
+                'balance': float(balance_rec.balance) if balance_rec else 0.0,
+                'amount': 0,
+                'bank_name': fallback_bank,
+                'account_number': fallback_acc,
+                'account_holder': fallback_holder,
+            })
+
+        # Tambahkan simpanan yang sudah disetujui
+        seen_type_ids = {wajib_type.id} if wajib_type else set()
+        for dep in approved:
+            if dep.saving_type_id not in seen_type_ids:
+                seen_type_ids.add(dep.saving_type_id)
+                st = SavingType.query.get(dep.saving_type_id)
+                balance_rec = MemberSavingBalance.query.filter_by(
+                    member_id=member.id, saving_type_id=dep.saving_type_id
+                ).first()
+                result.append({
+                    'id': dep.id,
+                    'saving_type_id': dep.saving_type_id,
+                    'saving_type_name': st.name if st else 'Unknown',
+                    'status': getattr(balance_rec, 'status', 'ACTIVE') if balance_rec else 'ACTIVE',
+                    'is_mandatory': False,
+                    'balance': float(balance_rec.balance) if balance_rec else 0.0,
+                    'amount': float(dep.amount),
+                    'bank_name': dep.source_bank or fallback_bank,
+                    'account_number': dep.source_account_no or fallback_acc,
+                    'account_holder': dep.source_account_name or fallback_holder,
+                })
+
+        # Tambahkan simpanan yang masih pending
+        for dep in pending:
+            if dep.saving_type_id not in seen_type_ids:
+                seen_type_ids.add(dep.saving_type_id)
+                st = SavingType.query.get(dep.saving_type_id)
+                result.append({
+                    'id': dep.id,
+                    'saving_type_id': dep.saving_type_id,
+                    'saving_type_name': st.name if st else 'Unknown',
+                    'status': 'PENDING',
+                    'is_mandatory': False,
+                    'balance': 0.0,
+                    'amount': float(dep.amount),
+                    'bank_name': dep.source_bank or fallback_bank,
+                    'account_number': dep.source_account_no or fallback_acc,
+                    'account_holder': dep.source_account_name or fallback_holder,
+                })
+
+        return jsonify({'success': True, 'savings': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/savings/<int:saving_type_id>/toggle_status', methods=['POST'])
+@token_required
+def toggle_member_saving_status(current_user, saving_type_id):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        balance_rec = MemberSavingBalance.query.filter_by(
+            member_id=member.id, saving_type_id=saving_type_id
+        ).first()
+        if not balance_rec:
+            return jsonify({'success': False, 'error': 'Saldo/Simpanan belum terdaftar'}), 404
+
+        st = SavingType.query.get(saving_type_id)
+        st_name = st.name if st else "Simpanan"
+        if st and 'wajib' in st.name.lower():
+            return jsonify({'success': False, 'error': 'Simpanan Wajib tidak dapat dinonaktifkan'}), 400
+
+        current_status = balance_rec.status or 'ACTIVE'
+        if current_status == 'ACTIVE':
+            balance_rec.status = 'DEACTIVATION_PENDING'
+            msg = f"Permohonan penonaktifan Simpanan {st_name} Anda telah dikirim dan sedang menunggu persetujuan pengurus."
+            Notification.create(
+                member_id=member.id,
+                title="Permohonan Penonaktifan Simpanan",
+                message=msg,
+                notification_type="SAVING_PENDING"
+            )
+        elif current_status == 'INACTIVE':
+            balance_rec.status = 'ACTIVATION_PENDING'
+            msg = f"Permohonan pengaktifan kembali Simpanan {st_name} Anda telah dikirim dan sedang menunggu persetujuan pengurus."
+            Notification.create(
+                member_id=member.id,
+                title="Permohonan Pengaktifan Simpanan",
+                message=msg,
+                notification_type="SAVING_PENDING"
+            )
+        else:
+            return jsonify({'success': False, 'error': f'Status saat ini ({current_status}) masih dalam proses persetujuan.'}), 400
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Permohonan status telah diajukan', 'new_status': balance_rec.status})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DELETE member/savings/<deposit_id>  – Hapus simpanan (bukan wajib)
+# ─────────────────────────────────────────────────────────────────────────────
+@api_bp.route('/member/savings/<int:deposit_id>', methods=['DELETE'])
+@token_required
+def delete_member_saving(current_user, deposit_id):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        deposit = DepositRequest.query.filter_by(id=deposit_id, member_id=member.id).first()
+        if not deposit:
+            return jsonify({'success': False, 'error': 'Pengajuan tidak ditemukan'}), 404
+
+        # Cek apakah ini simpanan wajib
+        st = SavingType.query.get(deposit.saving_type_id)
+        if st and 'wajib' in st.name.lower():
+            return jsonify({'success': False, 'error': 'Simpanan Wajib tidak dapat dihapus'}), 400
+
+        db.session.delete(deposit)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Simpanan berhasil dihapus'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET member/notifications  – Notifikasi dari berbagai aktivitas
+# ─────────────────────────────────────────────────────────────────────────────
+@api_bp.route('/member/notifications', methods=['GET'])
+@token_required
+def get_member_notifications(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'notifications': [], 'error': 'Member not found'})
+
+        notifications = Notification.query.filter_by(member_id=member.id)\
+            .order_by(Notification.created_at.desc()).all()
+            
+        result = []
+        for n in notifications:
+            color = 'blue'
+            icon = 'notifications'
+            
+            ntype = n.notification_type or 'SYSTEM'
+            if 'APPROVED' in ntype:
+                color = 'green'
+                icon = 'check_circle'
+            elif 'REJECTED' in ntype:
+                color = 'red'
+                icon = 'cancel'
+            elif 'REQUESTED' in ntype or 'PENDING' in ntype:
+                color = 'orange'
+                icon = 'schedule'
+            elif 'PAYROLL' in ntype:
+                color = 'blue'
+                icon = 'savings'
+
+            result.append({
+                'id': n.id,
+                'type': ntype,
+                'title': n.title,
+                'message': n.message,
+                'icon': icon,
+                'color': color,
+                'timestamp': n.created_at.isoformat() + 'Z',
+                'is_read': n.is_read or False,
+            })
+
+        return jsonify({'success': True, 'notifications': result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'notifications': []}), 500
+
+
+@api_bp.route('/member/notifications/<int:notif_id>/read', methods=['PUT'])
+@token_required
+def read_notification(current_user, notif_id):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        notif = Notification.query.filter_by(id=notif_id, member_id=member.id).first()
+        if not notif:
+            return jsonify({'success': False, 'error': 'Notification not found'}), 404
+
+        notif.is_read = True
+        notif.read_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Notification marked as read'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/notifications/read-all', methods=['PUT'])
+@token_required
+def read_all_notifications(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        Notification.query.filter_by(member_id=member.id, is_read=False).update({
+            'is_read': True,
+            'read_at': datetime.utcnow()
+        })
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'All notifications marked as read'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/notifications/unread-count', methods=['GET'])
+@token_required
+def unread_notifications_count(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        count = Notification.query.filter_by(member_id=member.id, is_read=False).count()
+        return jsonify({'success': True, 'unread_count': count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/withdraw', methods=['POST'])
+@token_required
+def request_withdrawal(current_user):
+    try:
+        user_id = current_user.id
+        data = request.json if request.is_json else request.form
+        amount = data.get('amount')
+        bank_name = data.get('bank_name')
+        account_number = data.get('account_number')
+        account_holder = data.get('account_holder')
+        reason = data.get('reason', '')
+        saving_type_id = data.get('saving_type_id') # New field from Flutter
+
+        member = Member.query.filter_by(mobile_user_id=user_id).first()
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        # Fallback jika bank_name atau account_number kosong atau '-'
+        if not bank_name or bank_name == '-' or not account_number or account_number == '-':
+            # 1. Cari dari profil member
+            bank_name = member.bank_name
+            account_number = member.bank_account_number or member.bank_account_no
+            account_holder = member.bank_account_name or member.full_name
+            
+            # 2. Jika masih kosong, cari dari deposit request milik anggota ini
+            if not bank_name or not account_number:
+                any_dep = DepositRequest.query.filter(
+                    DepositRequest.member_id == member.id,
+                    DepositRequest.source_bank != None,
+                    DepositRequest.source_bank != '',
+                    DepositRequest.source_account_no != None,
+                    DepositRequest.source_account_no != ''
+                ).first()
+                if any_dep:
+                    bank_name = any_dep.source_bank
+                    account_number = any_dep.source_account_no
+                    account_holder = any_dep.source_account_name or member.full_name
+
+        if not all([user_id, amount, bank_name, account_number, account_holder]) or bank_name == '-' or account_number == '-':
+            return jsonify({'success': False, 'error': 'Missing required fields / Rekening bank tujuan tidak ditemukan.'}), 400
 
         # Check balance validation
         st_id = 2 # Default to Simpanan Sukarela (SS)
@@ -1181,12 +1934,48 @@ def request_withdrawal(current_user):
         )
 
         db.session.add(new_request)
+
+        # Notify
+        st = SavingType.query.get(st_id)
+        st_name = st.name if st else "Simpanan"
+        Notification.create(
+            member_id=member.id,
+            title="Pengajuan Penarikan Dibuat",
+            message=f"Pengajuan penarikan dari {st_name} sebesar Rp {int(amount):,} telah dikirim.".replace(',', '.'),
+            notification_type="WITHDRAWAL_PENDING"
+        )
+
         db.session.commit()
 
         return jsonify({'success': True, 'message': 'Permohonan penarikan berhasil dikirim.'})
 
     except Exception as e:
         print(f"Withdrawal Error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@api_bp.route('/member/saving-types', methods=['GET'])
+@token_required
+def get_member_saving_types(current_user):
+    """Returns list of saving types that the member has transactions/balances for."""
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'message': 'Member not found'}), 404
+        
+        # Get all saving types the member is involved in
+        from sqlalchemy import distinct
+        type_ids = db.session.query(distinct(SavingTransaction.saving_type_id)).filter(
+            SavingTransaction.member_id == member.id,
+            SavingTransaction.transaction_status == 'SUCCESS'
+        ).all()
+        type_ids = [t[0] for t in type_ids if t[0] is not None]
+        
+        saving_types = SavingType.query.filter(SavingType.id.in_(type_ids)).order_by(SavingType.id).all()
+        
+        result = [{'id': st.id, 'name': st.name, 'code': st.code or st.name} for st in saving_types]
+        return jsonify({'success': True, 'saving_types': result})
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -1201,13 +1990,54 @@ def growth_analytics(current_user):
         from sqlalchemy import func, extract
         from utils.bi_scraper import fetch_inflasi, fetch_bi_rate, fetch_jisdor
 
-        period = request.args.get('period', 'Bulanan')  # Mingguan, Bulanan, Tahunan
+        # Define start/end dates for calculations
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
         
-        # ── 1. SAVING TREND DATA ─────────────────────────────
+        # Accept start_date / end_date / saving_type_id query params
+        start_date_str = request.args.get('start_date', None)
+        end_date_str   = request.args.get('end_date', None)
+        filter_saving_type_id = request.args.get('saving_type_id', None, type=int)
+        
         # Get member for this user
         member = Member.query.filter_by(mobile_user_id=current_user.id).first()
         member_id = member.id if member else None
+
+        if start_date_str and end_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+                end_date   = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            except ValueError:
+                # If parsing fails, use default: date_joined if available, else Jan 1 this year
+                start_date = member.date_joined if (member and member.date_joined) else datetime(now.year, 1, 1)
+                end_date   = now
+        else:
+            # Default: tanggal daftar anggota s/d hari ini
+            start_date = member.date_joined if (member and member.date_joined) else datetime(now.year, 1, 1)
+            end_date   = now
         
+        eco_start = start_date - timedelta(days=90)
+        delta_days = (end_date - start_date).days
+        
+        # ── 1. SAVING TREND DATA ─────────────────────────────
+        
+        # Validasi: start_date tidak boleh sebelum tanggal bergabung anggota
+        if member_id and member and member.date_joined:
+            member_join_date = member.date_joined.replace(hour=0, minute=0, second=0, microsecond=0)
+            if start_date < member_join_date:
+                return jsonify({
+                    'success': False,
+                    'error': 'before_join_date',
+                    'message': f'Tanggal mulai tidak boleh sebelum tanggal Anda bergabung sebagai anggota '
+                               f'({member_join_date.strftime("%d %b %Y")}).'
+                }), 400
+        
+        # Periode valid jika anggota sudah bergabung pada rentang yang dipilih
+        is_member_during_period = True
+        if member_id and member and member.date_joined:
+            if member.date_joined > end_date:
+                is_member_during_period = False
+
         if member_id:
             total_balance = float(db.session.query(func.sum(MemberSavingBalance.balance)).filter_by(member_id=member_id).scalar() or 0)
             total_tx = SavingTransaction.query.filter_by(member_id=member_id).count()
@@ -1217,71 +2047,92 @@ def growth_analytics(current_user):
 
         active_members = Member.query.filter_by(status='AKTIF').count()
         
-        # Aggregation of saving transactions based on period
-        from datetime import datetime, timedelta
+        # Aggregation of saving transactions based on date range
+        # Initialize current time and month names for eco aggregation
         now = datetime.utcnow()
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+        initial_balance = 0.0
         months_labels = []
         months_values = []
+        deposit_values = []
+        withdrawal_values = []
         
-        if period == 'Mingguan':
-            # Last 7 Days
-            for i in range(6, -1, -1):
-                target_date = now - timedelta(days=i)
-                months_labels.append(target_date.strftime('%d %b'))
+        if is_member_during_period and member_id:
+            # Calculate initial balance before start_date (filtered by saving_type_id if provided)
+            init_debit_q = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                SavingTransaction.member_id == member_id,
+                SavingTransaction.transaction_type == 'DEBIT',
+                SavingTransaction.transaction_status == 'SUCCESS',
+                SavingTransaction.transaction_date < start_date
+            )
+            init_credit_q = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                SavingTransaction.member_id == member_id,
+                SavingTransaction.transaction_type == 'CREDIT',
+                SavingTransaction.transaction_status == 'SUCCESS',
+                SavingTransaction.transaction_date < start_date
+            )
+            if filter_saving_type_id:
+                init_debit_q = init_debit_q.filter(SavingTransaction.saving_type_id == filter_saving_type_id)
+                init_credit_q = init_credit_q.filter(SavingTransaction.saving_type_id == filter_saving_type_id)
+            initial_debit = init_debit_q.scalar() or 0
+            initial_credit = init_credit_q.scalar() or 0
+            initial_balance = float(initial_debit - initial_credit)
+            current_balance = initial_balance
+
+            # Fetch transactions within the period (with optional saving_type_id filter)
+            txn_query = SavingTransaction.query.filter(
+                SavingTransaction.member_id == member_id,
+                SavingTransaction.transaction_status == 'SUCCESS',
+                SavingTransaction.transaction_date >= start_date,
+                SavingTransaction.transaction_date <= end_date
+            )
+            if filter_saving_type_id:
+                txn_query = txn_query.filter(
+                    SavingTransaction.saving_type_id == filter_saving_type_id
+                )
+            txns = txn_query.order_by(SavingTransaction.transaction_date).all()
+            
+            # Do not group by day; plot every transaction chronologically
+            for t in txns:
+                d_str = t.transaction_date.strftime('%d %b %Y %H:%M')
+                debit = float(t.amount) if t.transaction_type == 'DEBIT' else 0.0
+                credit = float(t.amount) if t.transaction_type == 'CREDIT' else 0.0
                 
-                if member_id:
-                    daily_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
-                        SavingTransaction.member_id == member_id,
-                        SavingTransaction.transaction_type == 'DEBIT',
-                        extract('day', SavingTransaction.transaction_date) == target_date.day,
-                        extract('month', SavingTransaction.transaction_date) == target_date.month,
-                        extract('year', SavingTransaction.transaction_date) == target_date.year
-                    ).scalar() or 0
-                else:
-                    daily_deposit = 0
-                months_values.append(float(daily_deposit))
-                
-        elif period == 'Tahunan':
-            # Last 5 Years
-            for i in range(4, -1, -1):
-                target_year = now.year - i
-                months_labels.append(str(target_year))
-                
-                if member_id:
-                    yearly_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
-                        SavingTransaction.member_id == member_id,
-                        SavingTransaction.transaction_type == 'DEBIT',
-                        extract('year', SavingTransaction.transaction_date) == target_year
-                    ).scalar() or 0
-                else:
-                    yearly_deposit = 0
-                months_values.append(float(yearly_deposit))
-                
-        else:
-            # Bulanan (Last 6 Months)
-            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
-            for i in range(5, -1, -1):
-                target_date = now - timedelta(days=30 * i)
-                month_num = target_date.month
-                year_num = target_date.year
-                months_labels.append(month_names[month_num - 1])
-                
-                if member_id:
-                    monthly_deposit = db.session.query(func.sum(SavingTransaction.amount)).filter(
-                        SavingTransaction.member_id == member_id,
-                        SavingTransaction.transaction_type == 'DEBIT',
-                        extract('month', SavingTransaction.transaction_date) == month_num,
-                        extract('year', SavingTransaction.transaction_date) == year_num
-                    ).scalar() or 0
-                else:
-                    monthly_deposit = 0
-                months_values.append(float(monthly_deposit))
-        
+                current_balance += (debit - credit)
+                months_labels.append(d_str)
+                months_values.append(current_balance)
+                deposit_values.append(debit)
+                withdrawal_values.append(credit)
+            # Ensure the chart spans the requested period by plotting start and end points
+            start_str = start_date.strftime('%d %b %Y %H:%M')
+            if not months_labels or months_labels[0][:11] != start_str[:11]:
+                months_labels.insert(0, start_str)
+                months_values.insert(0, initial_balance)
+                deposit_values.insert(0, 0.0)
+                withdrawal_values.insert(0, 0.0)
+
+            end_str = end_date.strftime('%d %b %Y %H:%M')
+            if not months_labels or months_labels[-1][:11] != end_str[:11]:
+                months_labels.append(end_str)
+                months_values.append(current_balance)
+                deposit_values.append(0.0)
+                withdrawal_values.append(0.0)
+
+        # Include filter type info in response
+        selected_saving_type_name = None
+        if filter_saving_type_id:
+            st_filter = SavingType.query.get(filter_saving_type_id)
+            selected_saving_type_name = st_filter.name if st_filter else None
+
         # Calculate growth percentage
+        growth_pct = 0.0
         if len(months_values) >= 2 and months_values[-2] > 0:
             growth_pct = round(((months_values[-1] - months_values[-2]) / months_values[-2]) * 100, 1)
-        else:
-            growth_pct = 0.0
+        elif len(months_values) == 1 and initial_balance > 0:
+            growth_pct = round(((months_values[0] - initial_balance) / initial_balance) * 100, 1)
+        elif len(months_values) == 1 and initial_balance == 0 and months_values[0] > 0:
+            growth_pct = 100.0
         
         # Distribution by saving type
         distribution = []
@@ -1299,127 +2150,293 @@ def growth_analytics(current_user):
         
         # ── 2. ECONOMIC DATA (FROM BI SCRAPER) ───────────────
         try:
-            inflasi_data = fetch_inflasi()
-            birate_data = fetch_bi_rate()
-            jisdor_data = fetch_jisdor()
+            from utils.bi_scraper import fetch_inflasi, fetch_bi_rate, fetch_jisdor, fetch_latest_food_prices
+            inflasi_data = fetch_inflasi(start_date=eco_start, end_date=end_date)
+            birate_data = fetch_bi_rate(start_date=eco_start, end_date=end_date)
+            jisdor_data = fetch_jisdor(start_date=eco_start, end_date=end_date)
+            pangan_data = fetch_latest_food_prices(start_date=eco_start, end_date=end_date)
         except Exception as e:
             print(f"[growth-analytics] BI Scraper error: {e}")
             inflasi_data = []
             birate_data = []
             jisdor_data = []
+            pangan_data = []
         
-        # Take latest 6 entries for charts
+        # Align economic data with the selected period
         eco_months = []
         inflation_values = []
         birate_values = []
         usd_idr_values = []
+        food_price_values = []
+
+        # Helper function to get closest record on or before target_dt
+        def get_closest_val(data_list, target_dt, key_name, default=0.0):
+            for item in data_list:
+                dt = item.get('tanggal_dt')
+                if dt:
+                    if dt <= target_dt:
+                        return float(item.get(key_name, default))
+            return default
+
+        # Process food prices by grouping by date
+        pangan_by_date = {}
+        for item in pangan_data:
+            dt = item.get('tanggal_dt')
+            if dt:
+                date_key = dt.date()
+                pangan_by_date.setdefault(date_key, []).append(float(item.get('harga_rp', 0)))
         
-        for item in reversed(inflasi_data[:6]):
-            eco_months.append(item.get('periode_str', '')[:3])
-            inflation_values.append(float(item.get('inflasi_persen', 0)))
+        avg_pangan_by_date = {d: sum(vals)/len(vals) for d, vals in pangan_by_date.items() if vals}
+        sorted_pangan_dates = sorted(avg_pangan_by_date.keys(), reverse=True)
+
+        def get_closest_food_price(target_dt, default=0.0):
+            target_date = target_dt.date()
+            for d in sorted_pangan_dates:
+                if d <= target_date:
+                    return avg_pangan_by_date[d]
+            return default
+
+        if delta_days <= 31:
+            # Harian — tiap hari
+            num_days = delta_days + 1
+            for i in range(num_days):
+                target_date = start_date + timedelta(days=i)
+                eco_months.append(target_date.strftime('%d %b'))
+                inflation_values.append(get_closest_val(inflasi_data, target_date, 'inflasi_persen', 0.0))
+                birate_values.append(get_closest_val(birate_data, target_date, 'bi_rate_persen', 0.0))
+                usd_idr_values.append(get_closest_val(jisdor_data, target_date, 'kurs_jisdor', 0.0))
+                food_price_values.append(get_closest_food_price(target_date, 0.0))
+                
+        elif delta_days <= 730:
+            # Bulanan — tiap bulan dalam rentang
+            from dateutil.relativedelta import relativedelta
+            cur_eco = start_date.replace(day=1)
+            end_eco_month = end_date.replace(day=1)
+            while cur_eco <= end_eco_month:
+                label = f"{month_names[cur_eco.month - 1]} {cur_eco.year}" if cur_eco.year != now.year else month_names[cur_eco.month - 1]
+                eco_months.append(label)
+                # Use the last day of this month as the target
+                next_m = cur_eco + relativedelta(months=1)
+                target_date = min(next_m - timedelta(days=1), end_date)
+                inflation_values.append(get_closest_val(inflasi_data, target_date, 'inflasi_persen', 0.0))
+                birate_values.append(get_closest_val(birate_data, target_date, 'bi_rate_persen', 0.0))
+                usd_idr_values.append(get_closest_val(jisdor_data, target_date, 'kurs_jisdor', 0.0))
+                food_price_values.append(get_closest_food_price(target_date, 0.0))
+                cur_eco += relativedelta(months=1)
+                
+        else:
+            # Tahunan — tiap tahun dalam rentang
+            for yr in range(start_date.year, end_date.year + 1):
+                eco_months.append(str(yr))
+                target_date = datetime(yr, 12, 31, 23, 59, 59) if yr < now.year else now
+                inflation_values.append(get_closest_val(inflasi_data, target_date, 'inflasi_persen', 0.0))
+                birate_values.append(get_closest_val(birate_data, target_date, 'bi_rate_persen', 0.0))
+                usd_idr_values.append(get_closest_val(jisdor_data, target_date, 'kurs_jisdor', 0.0))
+                food_price_values.append(get_closest_food_price(target_date, 0.0))
         
-        for item in reversed(birate_data[:6]):
-            birate_values.append(float(item.get('bi_rate_persen', 0)))
+
+        # Compute food price change % (first vs last non-zero)
+        non_zero_fp = [v for v in food_price_values if v > 0]
+        food_price_change_pct = None
+        if len(non_zero_fp) >= 2:
+            food_price_change_pct = round(((non_zero_fp[-1] - non_zero_fp[0]) / non_zero_fp[0]) * 100, 2)
         
-        for item in reversed(jisdor_data[:6]):
-            usd_idr_values.append(float(item.get('kurs_jisdor', 0)))
+        # Latest and average values for economic_summary
+        last_updated_str = None
+        if inflasi_data and len(inflasi_data) > 0 and 'diambil_pada' in inflasi_data[0]:
+            try:
+                last_updated_str = inflasi_data[0]['diambil_pada'].strftime('%d %b %Y %H:%M')
+            except:
+                pass
+
+        latest_inflation = inflation_values[-1] if inflation_values else 0
+        latest_birate = birate_values[-1] if birate_values else 0
+        latest_usd_idr = usd_idr_values[-1] if usd_idr_values else 0
+        latest_food_price = food_price_values[-1] if food_price_values else 0
+        avg_inflation = round(sum(inflation_values) / len(inflation_values), 2) if inflation_values else None
+        avg_birate = round(sum(birate_values) / len(birate_values), 2) if birate_values else None
+        avg_usd_idr = round(sum(usd_idr_values) / len(usd_idr_values), 2) if usd_idr_values else None
+
+        # Fetch latest food prices for commodities list
+        latest_pangan_raw = fetch_latest_food_prices()
+        food_commodities = []
+        for item in latest_pangan_raw:
+            name = item.get('komoditas', '')
+            price = item.get('harga_rp', 0.0)
+            if name and price:
+                clean_name = name.replace("Kualitas", "").replace("Medium", "Med").replace("Premium", "Prem")
+                clean_name = clean_name.replace("Kemasan", "").replace("Bermerk", "").replace("Curah", "").strip()
+                clean_name = " ".join(clean_name.split())
+                food_commodities.append({
+                    'name': clean_name,
+                    'price': float(price)
+                })
         
-        # ── 3. AI INSIGHTS (RULE-BASED ANALYSIS) ────────────
+        # ── ECONOMIC HEALTH SCORE (per-member, same logic as web) ──
+        # is_member_during_period already evaluated above (request would have returned 400
+        # if start_date < date_joined). Here we only check end_date boundary.
+        is_member_during_period_eco = True
+        if member_id and member and member.date_joined:
+            if member.date_joined > end_date:
+                is_member_during_period_eco = False
+            adjusted_start_date = start_date  # already validated >= date_joined
+        else:
+            adjusted_start_date = start_date
+
+        from routes.analytics_routes import _compute_radar_scores
+        radar_data = _compute_radar_scores(member_id=member_id, start_date=adjusted_start_date, end_date=end_date)
+        
+        stability_score = radar_data['values'][0]
+        withdrawal_score = radar_data['values'][1]
+        economic_score = radar_data['values'][2]
+        activity_score = radar_data['values'][3]
+        food_price_score = radar_data['values'][4]
+        risk_score = radar_data['values'][5]
+        
+        if not is_member_during_period_eco:
+            eco_health_score = 0
+            eco_health_status = 'Not Applicable'
+        else:
+            # Weighted economic health score
+            eco_health_score = round(
+                stability_score * 0.28 +
+                withdrawal_score * 0.18 +
+                economic_score * 0.20 +
+                activity_score * 0.14 +
+                food_price_score * 0.10 +
+                risk_score * 0.10
+            )
+            eco_health_score = max(0, min(eco_health_score, 100))
+            
+            # Sync the categories boundaries exactly with the web dashboard
+            if eco_health_score > 80: eco_health_status = 'Sangat Baik'
+            elif eco_health_score > 60: eco_health_status = 'Stabil'
+            elif eco_health_score > 40: eco_health_status = 'Waspada'
+            else: eco_health_status = 'Risiko Tinggi'
+        
+        radar_scores = [
+            {'label': 'Stabilitas Simpanan', 'value': stability_score},
+            {'label': 'Rasio Penarikan', 'value': withdrawal_score},
+            {'label': 'Kondisi Ekonomi Makro', 'value': economic_score},
+            {'label': 'Aktivitas Transaksi', 'value': activity_score},
+            {'label': 'Tekanan Harga Pangan', 'value': food_price_score},
+            {'label': 'Stabilitas Kurs', 'value': risk_score},
+        ]
+        
+        # ── 3. AI INSIGHTS (RULE-BASED ANALYSIS, PER MEMBER) ────────────
         ai_insights = []
         
-        # Insight 1: Inflation impact
-        latest_inflation = inflation_values[-1] if inflation_values else 0
-        if latest_inflation > 4.0:
-            ai_insights.append({
-                'type': 'warning',
-                'title': 'Inflasi Tinggi',
-                'message': f'Inflasi nasional mencapai {latest_inflation}%, melebihi batas aman 4%. Daya beli menurun, disarankan mengalokasikan lebih banyak pada Simpanan Sukarela sebagai dana cadangan darurat.',
-                'confidence': 0.85
-            })
-        elif latest_inflation > 3.0:
-            ai_insights.append({
-                'type': 'info',
-                'title': 'Inflasi Terkendali',
-                'message': f'Inflasi nasional {latest_inflation}% masih dalam batas wajar. Kondisi ekonomi relatif stabil untuk menabung.',
-                'confidence': 0.90
-            })
-        else:
-            ai_insights.append({
-                'type': 'success',
-                'title': 'Inflasi Rendah',
-                'message': f'Inflasi nasional {latest_inflation}% menunjukkan stabilitas harga. Waktu yang baik untuk meningkatkan simpanan jangka panjang.',
-                'confidence': 0.92
-            })
-        
-        # Insight 1: Zero Balance condition
+        # Insight: Zero Balance condition
         if total_balance == 0:
             ai_insights.append({
                 'type': 'info',
                 'title': 'Belum Ada Simpanan',
-                'message': 'Anda belum memiliki riwayat simpanan. Mulailah menabung untuk membangun ketahanan finansial. Kami tetap menampilkan analisis ekonomi makro di bawah ini sebagai referensi kondisi keuangan secara umum.',
+                'message': 'Anda belum memiliki riwayat simpanan. Mulailah menabung untuk membangun ketahanan finansial. Analisis ekonomi makro di bawah ini dapat menjadi referensi kondisi keuangan secara umum.',
                 'confidence': 1.0
             })
         else:
-            # Insight 2: Growth trend
+            # Insight: Growth trend (per member)
             if growth_pct > 10:
                 ai_insights.append({
                     'type': 'success',
-                    'title': 'Pertumbuhan Pesat',
+                    'title': 'Pertumbuhan Simpanan Pesat',
                     'message': f'Simpanan Anda tumbuh {growth_pct}% periode ini. Pertumbuhan di atas rata-rata ini menunjukkan manajemen keuangan yang sangat baik.',
                     'confidence': 0.88
                 })
             elif growth_pct > 0:
                 ai_insights.append({
                     'type': 'info',
-                    'title': 'Pertumbuhan Positif',
-                    'message': f'Simpanan Anda tumbuh {growth_pct}% periode ini. Pertahankan kebiasaan menabung yang konsisten ini.',
+                    'title': 'Simpanan Tumbuh Positif',
+                    'message': f'Simpanan Anda tumbuh {growth_pct}% periode ini. Pertahankan kebiasaan menabung yang konsisten.',
                     'confidence': 0.85
                 })
             elif growth_pct < 0:
                 ai_insights.append({
                     'type': 'warning',
                     'title': 'Penurunan Simpanan',
-                    'message': f'Simpanan Anda menurun {abs(growth_pct)}% periode ini. Coba tinjau kembali pengeluaran Anda.',
+                    'message': f'Simpanan Anda menurun {abs(growth_pct)}% periode ini. Tinjau kembali pola pengeluaran Anda dan pertimbangkan meningkatkan setoran rutin.',
                     'confidence': 0.82
                 })
-                
-        # Insight 3: Inflation impact
-        latest_inflation = inflation_values[-1] if inflation_values else 0
+        
+        # Insight: Inflasi vs simpanan member
         if latest_inflation > 4.0:
             ai_insights.append({
                 'type': 'warning',
                 'title': 'Inflasi Nasional Tinggi',
-                'message': f'Inflasi saat ini mencapai {latest_inflation}%. Nilai uang berpotensi turun, disarankan untuk mengamankan dana darurat di koperasi dengan bunga stabil.',
+                'message': f'Inflasi saat ini {latest_inflation}% melampaui batas aman 4%. Nilai uang berpotensi menurun. Disarankan untuk mengamankan dana darurat di koperasi dengan imbal hasil stabil.',
                 'confidence': 0.85
             })
-        elif latest_inflation <= 4.0 and latest_inflation > 0:
+        elif latest_inflation > 2.5:
             ai_insights.append({
-                'type': 'success',
-                'title': 'Inflasi Nasional Terkendali',
-                'message': f'Inflasi saat ini {latest_inflation}%. Waktu yang tepat untuk mengembangkan nilai aset melalui simpanan jangka panjang.',
+                'type': 'info',
+                'title': 'Inflasi Terkendali',
+                'message': f'Inflasi nasional {latest_inflation}% masih dalam batas wajar. Kondisi harga relatif stabil — baik untuk mempertahankan nilai simpanan.',
                 'confidence': 0.90
             })
+        elif latest_inflation > 0:
+            ai_insights.append({
+                'type': 'success',
+                'title': 'Inflasi Rendah',
+                'message': f'Inflasi nasional {latest_inflation}% sangat terkendali. Waktu yang baik untuk meningkatkan simpanan jangka panjang.',
+                'confidence': 0.92
+            })
         
-        # Insight 4: BI Rate vs withdrawal correlation
-        latest_birate = birate_values[-1] if birate_values else 0
+        # Insight: BI Rate
         prev_birate = birate_values[-2] if len(birate_values) >= 2 else latest_birate
         if latest_birate > prev_birate:
             ai_insights.append({
                 'type': 'info',
                 'title': 'Suku Bunga BI Naik',
-                'message': f'BI-7 Day Rate naik ke {latest_birate}%. Menabung saat ini berpotensi memberikan imbal hasil lebih baik.',
+                'message': f'BI-7 Day Rate naik ke {latest_birate}%. Kenaikan suku bunga mendorong iklim menabung lebih menguntungkan.',
                 'confidence': 0.80
             })
+        elif latest_birate < prev_birate and prev_birate > 0:
+            ai_insights.append({
+                'type': 'info',
+                'title': 'Suku Bunga BI Turun',
+                'message': f'BI-7 Day Rate turun ke {latest_birate}%. Penurunan suku bunga dapat mendorong konsumsi — pertahankan simpanan Anda agar tetap aman.',
+                'confidence': 0.75
+            })
         
-        # Insight 5: USD/IDR
-        latest_kurs = usd_idr_values[-1] if usd_idr_values else 0
-        if latest_kurs > 16000:
+        # Insight: Kurs JISDOR (Rupiah)
+        if latest_usd_idr > 16000:
             ai_insights.append({
                 'type': 'warning',
                 'title': 'Rupiah Melemah',
-                'message': f'Kurs mencapai Rp {latest_kurs:,.0f}/USD. Harga barang berpotensi naik, pastikan Anda memiliki dana cadangan yang cukup.',
+                'message': f'Kurs USD/IDR mencapai Rp {latest_usd_idr:,.0f}. Pelemahan rupiah berpotensi menaikkan harga impor. Pastikan dana darurat Anda tercukupi di koperasi.',
                 'confidence': 0.78
             })
+        elif latest_usd_idr > 0:
+            ai_insights.append({
+                'type': 'success',
+                'title': 'Kurs Rupiah Stabil',
+                'message': f'Kurs USD/IDR di Rp {latest_usd_idr:,.0f}. Nilai tukar rupiah dalam kondisi relatif stabil, mendukung daya beli dan ketahanan simpanan.',
+                'confidence': 0.72
+            })
+        
+        # Insight: Harga Pangan
+        if food_price_change_pct is not None:
+            if food_price_change_pct > 8:
+                ai_insights.append({
+                    'type': 'warning',
+                    'title': 'Tekanan Harga Pangan Tinggi',
+                    'message': f'Harga pangan naik {food_price_change_pct}% dalam periode ini. Kenaikan ini berisiko menekan pengeluaran rumah tangga dan mengurangi kemampuan menabung. Pertimbangkan menambah porsi simpanan darurat.',
+                    'confidence': 0.82
+                })
+            elif food_price_change_pct > 4:
+                ai_insights.append({
+                    'type': 'info',
+                    'title': 'Harga Pangan Sedikit Naik',
+                    'message': f'Harga pangan meningkat {food_price_change_pct}%. Pantau perkembangan harga pangan secara berkala agar tidak berdampak signifikan pada anggaran.',
+                    'confidence': 0.76
+                })
+            elif food_price_change_pct <= 0:
+                ai_insights.append({
+                    'type': 'success',
+                    'title': 'Harga Pangan Stabil',
+                    'message': f'Harga pangan terpantau stabil atau sedikit turun ({food_price_change_pct}%). Kondisi ini mendukung penghematan pengeluaran dan peningkatan simpanan.',
+                    'confidence': 0.80
+                })
         
         # ── 4. GROWTH PREDICTION (SIMPLE LINEAR TREND) ──────
         prediction_growth = 0.0
@@ -1467,7 +2484,7 @@ def growth_analytics(current_user):
         from models.user_model import PayrollBatch
         payroll_months = []
         payroll_values = []
-        withdrawal_values = []
+        payroll_withdrawal_values = []
         
         for i in range(5, -1, -1):
             target_date = now - timedelta(days=30 * i)
@@ -1476,34 +2493,52 @@ def growth_analytics(current_user):
             payroll_months.append(month_names[m - 1])
             
             # Payroll total
-            payroll_total = db.session.query(func.sum(PayrollBatch.total_amount)).filter(
-                PayrollBatch.period_month == m,
-                PayrollBatch.period_year == y
-            ).scalar() or 0
+            payroll_total = 0
+            if member_id:
+                from models.user_model import PayrollBatchDetail
+                payroll_total = db.session.query(func.sum(PayrollBatchDetail.amount)).join(
+                    PayrollBatch, PayrollBatchDetail.payroll_batch_id == PayrollBatch.id
+                ).filter(
+                    PayrollBatchDetail.member_id == member_id,
+                    PayrollBatch.period_month == m,
+                    PayrollBatch.period_year == y
+                ).scalar() or 0
             payroll_values.append(float(payroll_total))
             
             # Withdrawals
-            withdrawal_total = db.session.query(func.sum(SavingTransaction.amount)).filter(
-                SavingTransaction.transaction_type == 'CREDIT',
-                SavingTransaction.transaction_source == 'WITHDRAWAL',
-                extract('month', SavingTransaction.transaction_date) == m,
-                extract('year', SavingTransaction.transaction_date) == y
-            ).scalar() or 0
-            withdrawal_values.append(float(withdrawal_total))
+            withdrawal_total = 0
+            if member_id:
+                withdrawal_total = db.session.query(func.sum(SavingTransaction.amount)).filter(
+                    SavingTransaction.member_id == member_id,
+                    SavingTransaction.transaction_type == 'CREDIT',
+                    SavingTransaction.transaction_source == 'WITHDRAWAL',
+                    extract('month', SavingTransaction.transaction_date) == m,
+                    extract('year', SavingTransaction.transaction_date) == y
+                ).scalar() or 0
+            payroll_withdrawal_values.append(float(withdrawal_total))
         
-        # ── 6. FINANCIAL HEALTH SCORE ────────────────────────
-        health_score = 50  # Base
-        if growth_pct > 0: health_score += 15
-        if growth_pct > 10: health_score += 10
-        if latest_inflation < 4: health_score += 10
-        if latest_inflation < 3: health_score += 5
-        if active_members > 10: health_score += 10
-        health_score = min(100, health_score)
+        # ── 6. FINANCIAL HEALTH SCORE (simpanan pertumbuhan member) ────────────
+        if not is_member_during_period:
+            health_score = 0
+            health_status = 'Not Applicable'
+        else:
+            health_score = 50  # Base
+            if growth_pct > 0: health_score += 15
+            if growth_pct > 10: health_score += 10
+            if latest_inflation < 4: health_score += 10
+            if latest_inflation < 3: health_score += 5
+            if active_members > 10: health_score += 10
+            health_score = min(100, health_score)
+            
+            if health_score >= 80: health_status = 'Sangat Baik'
+            elif health_score >= 60: health_status = 'Stabil'
+            elif health_score >= 40: health_status = 'Waspada'
+            else: health_status = 'Risiko Tinggi'
         
-        if health_score >= 80: health_status = 'Sangat Baik'
-        elif health_score >= 60: health_status = 'Stabil'
-        elif health_score >= 40: health_status = 'Waspada'
-        else: health_status = 'Risiko Tinggi'
+        # Sertakan info tanggal bergabung di response untuk digunakan frontend
+        member_join_date_str = None
+        if member and member.date_joined:
+            member_join_date_str = member.date_joined.strftime('%Y-%m-%d')
 
         # ── BUILD RESPONSE ──────────────────────────────────
         response = {
@@ -1511,17 +2546,40 @@ def growth_analytics(current_user):
             'saving_trend': {
                 'months': months_labels,
                 'values': months_values,
+                'deposit_data': deposit_values,
+                'withdrawal_data': withdrawal_values,
                 'growth_pct': growth_pct,
                 'total_balance': total_balance,
                 'total_tx': total_tx,
                 'active_members': active_members,
-                'distribution': distribution
+                'distribution': distribution,
+                'selected_saving_type_name': selected_saving_type_name
             },
             'economic_data': {
                 'inflation': inflation_values,
                 'bi_rate': birate_values,
                 'usd_idr': usd_idr_values,
-                'months': eco_months if eco_months else months_labels
+                'food_prices': food_price_values,
+                'food_price_change_pct': food_price_change_pct,
+                'months': eco_months if eco_months else months_labels,
+                'food_commodities': food_commodities
+            },
+            'economic_summary': {
+                'latest_inflation': latest_inflation if latest_inflation else None,
+                'latest_bi_rate': latest_birate if latest_birate else None,
+                'latest_usd_idr': latest_usd_idr if latest_usd_idr else None,
+                'latest_food_price': latest_food_price if latest_food_price else None,
+                'food_price_change_pct': food_price_change_pct,
+                'avg_inflation': avg_inflation,
+                'avg_bi_rate': avg_birate,
+                'avg_usd_idr': avg_usd_idr,
+                'source': 'Bank Indonesia (Scraping)',
+                'last_updated': last_updated_str
+            },
+            'economic_health': {
+                'score': eco_health_score,
+                'status': eco_health_status,
+                'radar_scores': radar_scores
             },
             'ai_insights': ai_insights,
             'prediction': {
@@ -1533,11 +2591,14 @@ def growth_analytics(current_user):
             'payroll_vs_withdrawal': {
                 'months': payroll_months,
                 'payroll': payroll_values,
-                'withdrawal': withdrawal_values
+                'withdrawal': payroll_withdrawal_values
             },
             'health': {
                 'score': health_score,
                 'status': health_status
+            },
+            'member_info': {
+                'date_joined': member_join_date_str
             }
         }
         
@@ -1549,3 +2610,132 @@ def growth_analytics(current_user):
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+from models.user_model import ResignationRequest
+
+@api_bp.route('/membership/resign', methods=['POST'])
+@token_required
+def submit_resignation(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        
+        if not member:
+            return jsonify({'success': False, 'message': 'Anda belum terdaftar sebagai anggota.'}), 400
+
+        existing = ResignationRequest.query.filter_by(member_id=member.id, status='PENDING').first()
+        if existing:
+            return jsonify({'success': False, 'message': 'Anda sudah memiliki pengajuan pengunduran diri yang sedang diproses.'}), 400
+
+        data = request.json or request.form
+        
+        req = ResignationRequest(
+            member_id=member.id,
+            nipy=data.get('nipy', ''),
+            jabatan=data.get('jabatan', ''),
+            lokasi_kerja=data.get('lokasi_kerja', ''),
+            effective_month=data.get('effective_month', ''),
+            bank_name=data.get('bank_name', ''),
+            bank_branch=data.get('bank_branch', ''),
+            bank_account_number=data.get('bank_account_number', ''),
+            bank_account_name=data.get('bank_account_name', '')
+        )
+        
+        db.session.add(req)
+        db.session.commit()
+        
+        ActivityLog.log(f"Member submitted resignation request: {member.full_name}", user_id=None, table_name="resignation_requests", reference_id=req.id)
+        
+        return jsonify({'success': True, 'message': 'Pengajuan pengunduran diri berhasil dikirim.'}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@api_bp.route('/membership/resign', methods=['GET'])
+@token_required
+def get_resignation_status(current_user):
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'message': 'Not a member'}), 400
+            
+        req = ResignationRequest.query.filter_by(member_id=member.id).order_by(ResignationRequest.created_at.desc()).first()
+        if not req:
+            return jsonify({'success': True, 'data': None})
+            
+        doc_url = None
+        proof_url = None
+        if req.status == 'APPROVED':
+            member_no = member.member_no if member.member_no else str(req.id)
+            doc_url = f'/api/membership/resign/document/Form_Resign_{member_no}.docx'
+            if getattr(req, 'transfer_proof', None):
+                import os
+                filename = os.path.basename(req.transfer_proof)
+                proof_url = f'/api/membership/resign/document/{filename}'
+
+        return jsonify({
+                'success': True,
+                'data': {
+                    'id': req.id,
+                    'status': req.status,
+                    'created_at': req.created_at.isoformat(),
+                    'effective_month': req.effective_month,
+                    'document_url': doc_url,
+                    'transfer_proof_url': proof_url
+                }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_bp.route('/membership/resign/document/<filename>', methods=['GET'])
+def get_resignation_document(filename):
+    import os
+    from flask import send_from_directory, current_app
+    return send_from_directory(os.path.join(current_app.root_path, 'uploads'), filename, as_attachment=True)
+
+@api_bp.route('/membership/resign/acknowledge', methods=['POST'])
+@token_required
+def acknowledge_resignation(current_user):
+    from sqlalchemy import text
+    try:
+        member = Member.query.filter_by(mobile_user_id=current_user.id).first()
+        if not member:
+            return jsonify({'success': False, 'message': 'Bukan anggota'}), 400
+            
+        req = ResignationRequest.query.filter_by(member_id=member.id, status='APPROVED').first()
+        if not req:
+            return jsonify({'success': False, 'message': 'Tidak ada pengajuan yang disetujui'}), 400
+
+        member_id = member.id
+        mobile_user_id = current_user.id
+        # 1. Hapus dependencies ke member_registration (via subquery ke member_registration_id)
+        db.session.execute(text("""
+            DELETE FROM ocr_logs 
+            WHERE ocr_result_id IN (
+                SELECT id FROM ocr_results 
+                WHERE member_registration_id IN (SELECT id FROM member_registration WHERE mobile_user_id = :mu_id)
+            )
+        """), {'mu_id': mobile_user_id})
+        
+        db.session.execute(text("DELETE FROM ocr_results WHERE member_registration_id IN (SELECT id FROM member_registration WHERE mobile_user_id = :mu_id)"), {'mu_id': mobile_user_id})
+        db.session.execute(text("DELETE FROM member_documents WHERE member_registration_id IN (SELECT id FROM member_registration WHERE mobile_user_id = :mu_id)"), {'mu_id': mobile_user_id})
+        db.session.execute(text("DELETE FROM registration_timeline WHERE member_registration_id IN (SELECT id FROM member_registration WHERE mobile_user_id = :mu_id)"), {'mu_id': mobile_user_id})
+        db.session.execute(text("DELETE FROM risk_flags WHERE member_registration_id IN (SELECT id FROM member_registration WHERE mobile_user_id = :mu_id)"), {'mu_id': mobile_user_id})
+        db.session.execute(text("DELETE FROM member_registration WHERE mobile_user_id = :mu_id"), {'mu_id': mobile_user_id})
+
+        # 2. Hapus dependencies ke members (berdasarkan member_id)
+        db.session.execute(text("DELETE FROM withdrawal_requests WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM deposit_requests WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM saving_transactions WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM payroll_batch_details WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM member_saving_balances WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM resignation_requests WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM notifications WHERE member_id = :id"), {'id': member_id})
+        db.session.execute(text("DELETE FROM members WHERE id = :id"), {'id': member_id})
+
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Penghapusan data berhasil.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

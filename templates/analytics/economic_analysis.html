@@ -2,6 +2,151 @@
 
 {% block dashboard_content %}
 <div class="analytics-container">
+    <!-- Data Source Badge, Date Filter, and Member Selector -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 5px;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <span style="background: rgba(16,185,129,0.1); color: #10b981; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">📊 DATA: REAL + EKONOMI BI</span>
+            <span style="background: rgba(59,130,246,0.1); color: #3b82f6; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700;">⏰ Last Update: {{ last_updated }}</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <!-- Member Selector -->
+            <div style="display: flex; gap: 8px; align-items: center; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+                <span style="font-size: 13px; font-weight: 700; color: #555; white-space: nowrap;">👤 Anggota:</span>
+                <select id="memberSelect" style="border: 1.5px solid #ddd; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; font-weight: 600; min-width: 220px; color: #333; cursor: pointer; background: #fafafa;">
+                    <option value="">-- Semua Anggota --</option>
+                </select>
+                <button type="button" onclick="applyMemberFilter()" style="background: #6e0b0b; color: white; border: none; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;">Tampilkan</button>
+            </div>
+            <!-- Date Filter -->
+            <form method="GET" action="{{ url_for('analytics.economic_analysis') }}" id="dateFilterForm" style="display: flex; gap: 10px; align-items: center; margin: 0; background: white; padding: 8px 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+                <input type="hidden" name="member_id" id="dateFormMemberId" value="{{ request.args.get('member_id', '') }}">
+                <span style="font-size: 13px; font-weight: 700; color: #555;">Periode:</span>
+                <input type="date" name="start_date" style="border: 1.5px solid #ddd; padding: 7px 10px; border-radius: 8px; font-size: 13px; font-family: inherit; font-weight: 600;" value="{{ start_date or '' }}">
+                <span style="color: #888; font-weight: bold;">-</span>
+                <input type="date" name="end_date" style="border: 1.5px solid #ddd; padding: 7px 10px; border-radius: 8px; font-size: 13px; font-family: inherit; font-weight: 600;" value="{{ end_date or '' }}">
+                <button type="submit" style="background: #6e0b0b; color: white; border: none; padding: 7px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;">Filter</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="economic-header-cards">
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">Periode Analisis</span>
+            <strong>{{ economic_summary.period }}</strong>
+        </div>
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">Data Tersedia</span>
+            <strong>{{ economic_summary.count }}</strong>
+        </div>
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">Inflasi Terbaru</span>
+            <strong>{{ economic_summary.latest_inflation or '-' }}%</strong>
+        </div>
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">BI Rate Terbaru</span>
+            <strong>{{ economic_summary.latest_bi_rate or '-' }}%</strong>
+        </div>
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">USD/IDR Terbaru</span>
+            <strong>{{ economic_summary.latest_usd_idr or '-' }}</strong>
+        </div>
+        <div class="glass-card economic-header-card">
+            <span class="header-card-label">Tekanan Harga Pangan</span>
+            <strong>
+                {% if economic_summary.latest_food_price is not none %}
+                    Rp {{ "{:,.0f}".format(economic_summary.latest_food_price or 0).replace(',', '.') }}
+                {% else %}
+                    —
+                {% endif %}
+            </strong>
+            <small style="color: rgba(255, 255, 255, 0.7); font-size: 0.72rem; margin-top: 6px; display: block;">
+                {% if economic_summary.food_price_change_pct is not none %}
+                    Perubahan: {{ economic_summary.food_price_change_pct }}%
+                {% else %}
+                    Data tidak lengkap.
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    <div class="economic-summary-grid">
+        <div class="summary-item">
+            <div class="summary-heading">
+                <span class="summary-icon">💰</span>
+                <span class="summary-label">
+                    {% if selected_member_name != 'Semua Anggota' %}
+                        Saldo Terkini Anggota
+                    {% else %}
+                        Total Saldo Terkini Anggota
+                    {% endif %}
+                </span>
+            </div>
+            <strong>Rp {{ "{:,.0f}".format(total_balance or 0).replace(',', '.') }}</strong>
+            <small>
+                {% if selected_member_name != 'Semua Anggota' %}
+                    Snapshot total saldo milik <strong>{{ selected_member_name }}</strong> saat ini.
+                {% else %}
+                    Total snapshot saldo seluruh anggota saat ini dari tabel `MemberSavingBalance`.
+                {% endif %}
+            </small>
+        </div>
+        <div class="summary-item">
+            <div class="summary-heading">
+                <span class="summary-icon">💸</span>
+                <span class="summary-label">
+                    {% if selected_member_name != 'Semua Anggota' %}
+                        Penarikan Sukses Anggota
+                    {% else %}
+                        Total Penarikan Sukses
+                    {% endif %}
+                </span>
+            </div>
+            <strong>Rp {{ "{:,.0f}".format(total_withdrawals or 0).replace(',', '.') }}</strong>
+            <small>
+                {% if selected_member_name != 'Semua Anggota' %}
+                    Akumulasi penarikan simpanan yang berhasil oleh <strong>{{ selected_member_name }}</strong> pada periode terpilih.
+                {% else %}
+                    Akumulasi penarikan simpanan seluruh anggota yang berhasil pada periode terpilih.
+                {% endif %}
+            </small>
+        </div>
+        <div class="summary-item">
+            <div class="summary-heading">
+                <span class="summary-icon">📥</span>
+                <span class="summary-label">
+                    {% if selected_member_name != 'Semua Anggota' %}
+                        Setoran Sukses Anggota
+                    {% else %}
+                        Total Setoran Sukses
+                    {% endif %}
+                </span>
+            </div>
+            <strong>Rp {{ "{:,.0f}".format(total_deposits or 0).replace(',', '.') }}</strong>
+            <small>
+                {% if selected_member_name != 'Semua Anggota' %}
+                    Akumulasi setoran simpanan yang sukses oleh <strong>{{ selected_member_name }}</strong> pada periode terpilih.
+                {% else %}
+                    Akumulasi setoran simpanan seluruh anggota yang sukses pada periode terpilih.
+                {% endif %}
+            </small>
+        </div>
+
+        <div class="summary-item">
+            <div class="summary-heading">
+                <span class="summary-icon">📈</span>
+                <span class="summary-label">Net Flow</span>
+            </div>
+            <strong class="{{ 'positive' if net_flow >= 0 else 'negative' }}">Rp {{ "{:,.0f}".format(net_flow or 0).replace(',', '.') }}</strong>
+            <small>
+                {% if selected_member_name != 'Semua Anggota' %}
+                    Selisih antara setoran dan penarikan sukses milik <strong>{{ selected_member_name }}</strong> pada periode terpilih.
+                {% else %}
+                    Selisih antara total setoran sukses dan total penarikan sukses seluruh anggota pada periode terpilih.
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
     <div class="analysis-header-grid">
         <!-- Health Score Card -->
         <div class="glass-card health-score-card">
@@ -13,63 +158,115 @@
                 </svg>
             </div>
             <div class="score-info">
-                <span class="score-label">Financial Health Score</span>
-                <h3 class="score-status">{{ health_status }}</h3>
-                <p class="score-desc">Berdasarkan stabilitas simpanan dan risiko penarikan anggota.</p>
+                <span class="score-label">Economic Health Score</span>
+                <h3 class="score-status status-{{ 'high' if health_score > 80 else 'medium' if health_score > 60 else 'low' }}">
+                    {{ health_status }}
+                    <span style="font-size:0.75rem; font-weight:500; margin-left:6px; opacity:0.7;">({{ health_score }}/100)</span>
+                </h3>
+                <!-- Dynamic interpretation based on score -->
+                <div class="score-breakdown">
+                    {% if health_score > 80 %}
+                    <p class="score-desc">🟢 Kondisi keuangan anggota <strong>sangat sehat</strong>. Simpanan konsisten, risiko rendah, dan aktivitas koperasi tinggi.</p>
+                    {% elif health_score > 60 %}
+                    <p class="score-desc">🟡 Kondisi keuangan <strong>cukup stabil</strong>. Ada beberapa area yang perlu ditingkatkan untuk mencapai kondisi optimal.</p>
+                    {% elif health_score > 40 %}
+                    <p class="score-desc">🟠 Kondisi keuangan <strong>perlu perhatian</strong>. Frekuensi penarikan tinggi atau simpanan tidak konsisten.</p>
+                    {% else %}
+                    <p class="score-desc">🔴 Kondisi keuangan <strong>berisiko tinggi</strong>. Disarankan segera evaluasi pola simpanan dan penarikan anggota.</p>
+                    {% endif %}
+                    <div class="score-detail-grid">
+                        {% set sd_indices = [
+                            ('Stabilitas Simpanan', 0),
+                            ('Frekuensi Penarikan', 1),
+                            ('Kondisi Ekonomi Makro', 2),
+                            ('Aktivitas Transaksi', 3),
+                            ('Tekanan Harga Pangan', 4),
+                            ('Risiko Penarikan', 5)
+                        ] %}
+                        {% for label, idx in sd_indices %}
+                        {% set score = radar_values[idx] %}
+                        <div class="score-detail-item">
+                            <span class="sd-label">{{ label }}</span>
+                            <div class="sd-bar-wrap">
+                                <div class="sd-bar {% if score > 70 %}status-good{% elif score > 40 %}status-mid{% else %}status-bad{% endif %}" 
+                                     data-width="{{ score }}"></div>
+                            </div>
+                            <span class="sd-val">{{ score }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </div>
 
+
         <!-- Radar Analysis -->
         <div class="glass-card radar-chart-container">
-            <h3>Kondisi Ekonomi Anggota</h3>
+            <h3>Kondisi Ekonomi — {{ selected_member_name }}</h3>
             <div class="chart-body">
                 <canvas id="economicRadarChart"></canvas>
             </div>
         </div>
-    </div>
 
-    <!-- Comparison Chart -->
-    <div class="glass-card full-chart-container">
-        <div class="chart-header">
-            <h3>Payroll vs Withdrawal (Monthly Trend)</h3>
-            <span class="text-muted" style="font-size: 0.85rem;">Memantau likuiditas koperasi terhadap gaji anggota</span>
-        </div>
-        <div class="chart-body">
-            <canvas id="payrollVsWithdrawalChart"></canvas>
-        </div>
     </div>
 
     <!-- Recommendations -->
     <div class="glass-card recommendation-card">
         <div class="rec-header">
             <i class="material-icons-round" style="color: var(--primary-red);">security</i>
-            <h3>Mitigasi Risiko & Rekomendasi</h3>
+            <h3>Mitigasi Risiko &amp; Rekomendasi</h3>
         </div>
         <div class="rec-grid">
+            {% for rec in recommendations %}
             <div class="rec-item">
-                <span class="rec-tag warning">Waspada</span>
-                <p>Withdrawal meningkat 20% saat inflasi naik bulan lalu. Perlu pengawasan likuiditas ketat.</p>
+                <span class="rec-tag {{ rec.tag_class }}">{{ rec.tag }}</span>
+                <p>{{ rec.text | safe }}</p>
             </div>
+            {% endfor %}
+            {% if not recommendations %}
             <div class="rec-item">
-                <span class="rec-tag success">Optimal</span>
-                <p>Konsistensi payroll stabil membantu pertumbuhan saldo rata-rata anggota sebesar 5%.</p>
+                <span class="rec-tag success">Info</span>
+                <p>Belum ada data transaksi yang cukup untuk menghasilkan rekomendasi.</p>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+<!-- Hidden data elements for Chart.js -->
+<div id="chart-data-analysis"
+    data-radar-labels='{{ radar_labels | tojson }}'
+    data-radar-values='{{ radar_values | tojson }}'
+    data-trend-months='{{ trend_months | tojson }}'
+    data-deposit='{{ deposit_values | tojson }}'
+    data-withdrawal='{{ withdrawal_values | tojson }}'
+    style="display:none;"></div>
+
 <style>
+    .analytics-container {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+        padding: 24px 0;
+        width: 100%;
+    }
+
+    .score-status.status-high { color: #10b981; }
+    .score-status.status-medium { color: #f59e0b; }
+    .score-status.status-low { color: #ef4444; }
+
     .analysis-header-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 25px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+        margin-top: 22px;
     }
 
     .health-score-card {
-        padding: 30px;
+        padding: 40px;
         display: flex;
         align-items: center;
-        gap: 30px;
+        gap: 35px;
     }
 
     .score-circle { width: 140px; }
@@ -83,21 +280,114 @@
 
     .circle-bg { fill: none; stroke: rgba(255, 255, 255, 0.05); stroke-width: 2.8; }
     .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; stroke: var(--primary-red); }
-    
+
     @keyframes progress { 0% { stroke-dasharray: 0 100; } }
 
     .percentage { fill: #fff; font-family: 'Inter', sans-serif; font-size: 8px; font-weight: 700; text-anchor: middle; }
 
-    .score-info .score-label { color: var(--text-muted); font-size: 0.9rem; }
-    .score-info .score-status { font-size: 1.5rem; margin: 5px 0; color: var(--success-green); }
-    .score-info .score-desc { color: var(--text-muted); font-size: 0.85rem; line-height: 1.4; }
+    .score-info { flex: 1; }
+    .score-info .score-label { color: var(--text-muted); font-size: 0.9rem; display: block; }
+    .score-info .score-status { font-size: 1.4rem; margin: 4px 0 6px; }
+    .score-info .score-desc { color: var(--text-muted); font-size: 0.83rem; line-height: 1.45; margin: 0 0 10px; }
+
+    /* Score detail bars */
+    .score-detail-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .score-detail-item { display: flex; align-items: center; gap: 8px; }
+    .sd-label { font-size: 0.72rem; color: #888; width: 130px; flex-shrink: 0; }
+    .sd-bar-wrap { flex: 1; background: rgba(0,0,0,0.06); border-radius: 4px; height: 6px; overflow: hidden; }
+    .sd-bar { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+    .sd-bar.status-good { background: #10b981; }
+    .sd-bar.status-mid  { background: #f59e0b; }
+    .sd-bar.status-bad  { background: #ef4444; }
+    .sd-val { font-size: 0.72rem; font-weight: 700; color: #555; width: 24px; text-align: right; flex-shrink: 0; }
+
+    /* Override health card layout */
+    .health-score-card { align-items: flex-start; padding: 28px 30px; }
 
     .radar-chart-container { padding: 25px; }
     .radar-chart-container h3 { font-size: 1.1rem; margin-bottom: 20px; text-align: center; }
-    .radar-chart-container .chart-body { height: 250px; }
+    .radar-chart-container .chart-body { height: 300px; }
 
     .full-chart-container { padding: 30px; }
-    .full-chart-container .chart-body { height: 400px; }
+    .full-chart-container .chart-body { height: 500px; }
+
+    .economic-summary-card,
+    .economic-table-card { padding: 25px; }
+
+    .analytics-container { display: flex; flex-direction: column; gap: 28px; padding: 24px 28px 16px; width: 100%; }
+    .glass-card { background: #fff; border: 1px solid rgba(226,232,240,0.95); border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+    .economic-header-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-bottom: 24px; align-items: stretch; }
+    .economic-header-card { padding: 24px; min-height: 150px; display: flex; flex-direction: column; justify-content: center; border-radius: 24px; background: linear-gradient(135deg, rgba(110,11,11,0.95) 0%, rgba(110,11,11,0.78) 100%); border: 1px solid rgba(110,11,11,0.16); }
+    .economic-header-card strong { display: block; margin-top: 14px; font-size: 1.45rem; line-height: 1.1; color: #ffffff; letter-spacing: 0.01em; }
+    .header-card-label { color: rgba(255,255,255,0.78); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; }
+
+    .economic-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 22px;
+        margin-top: 20px;
+    }
+    .summary-item {
+        background: #ffffff;
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 24px;
+        padding: 26px 24px;
+        min-height: 170px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+        color: #1f2937;
+    }
+    .summary-heading {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .summary-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: rgba(110, 11, 11, 0.08);
+        font-size: 1rem;
+    }
+    .summary-label {
+        display: block;
+        color: #475569;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 700;
+    }
+    .summary-item strong {
+        display: block;
+        font-size: 1.7rem;
+        line-height: 1.05;
+        letter-spacing: 0.01em;
+        color: #111827;
+        margin-bottom: 8px;
+    }
+    .summary-item small {
+        display: block;
+        margin-top: 4px;
+        color: #64748b;
+        font-size: 0.88rem;
+        line-height: 1.5;
+    }
+    .summary-item strong.positive { color: #16a34a; }
+    .summary-item strong.negative { color: #dc2626; }
+
+    .economic-table-wrap { overflow-x: auto; margin-top: 18px; }
+    .economic-table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    .economic-table th,
+    .economic-table td { padding: 13px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; font-size: 0.95rem; }
+    .economic-table th { color: #cbd5e1; font-weight: 700; background: rgba(255,255,255,0.03); }
+    .economic-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+    .no-data-text { color: #94a3b8; margin-top: 16px; }
 
     .recommendation-card { padding: 25px; }
     .rec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
@@ -114,16 +404,72 @@
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Radar Chart
-        const radarCtx = document.getElementById('economicRadarChart').getContext('2d');
-        new Chart(radarCtx, {
+    /* ── Global: dibutuhkan untuk onclick="applyMemberFilter()" di HTML ── */
+    function applyMemberFilter() {
+        var memberId = document.getElementById('memberSelect').value;
+        var newUrl = new URL(window.location.href);
+        if (memberId) {
+            newUrl.searchParams.set('member_id', memberId);
+        } else {
+            newUrl.searchParams.delete('member_id');
+        }
+        window.location.href = newUrl.toString();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+
+        /* ── Set progress bar widths dynamically to avoid inline style CSS warnings ── */
+        document.querySelectorAll('.sd-bar').forEach(function(bar) {
+            var w = bar.getAttribute('data-width');
+            if (w) {
+                bar.style.width = w + '%';
+            }
+        });
+
+        /* ── Sync member_id ke date filter form ── */
+        var dateFilterForm = document.getElementById('dateFilterForm');
+        if (dateFilterForm) {
+            dateFilterForm.addEventListener('submit', function () {
+                document.getElementById('dateFormMemberId').value =
+                    document.getElementById('memberSelect').value;
+            });
+        }
+
+        /* ── Ambil data chart dari hidden element ── */
+        var dataEl       = document.getElementById('chart-data-analysis');
+        var radarLabels  = JSON.parse(dataEl.getAttribute('data-radar-labels')  || '[]');
+        var radarValues  = JSON.parse(dataEl.getAttribute('data-radar-values')  || '[]');
+
+        /* ── Ambil member_id dari URL (untuk pre-select & radar per anggota) ── */
+        var urlParams      = new URLSearchParams(window.location.search);
+        var currentMemberId = urlParams.get('member_id');
+
+        /* ── Isi dropdown dengan nama anggota ── */
+        fetch('/analytics/members-list')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var select = document.getElementById('memberSelect');
+                data.forEach(function (m) {
+                    var option = document.createElement('option');
+                    option.value = m.id;
+                    option.textContent = m.full_name;
+                    if (String(m.id) === String(currentMemberId)) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            })
+            .catch(function (err) { console.warn('Gagal memuat daftar anggota:', err); });
+
+        /* ── Radar Chart ── */
+        var radarCtx   = document.getElementById('economicRadarChart').getContext('2d');
+        var radarChart = new Chart(radarCtx, {
             type: 'radar',
             data: {
-                labels: {{ radar_labels | tojson }},
+                labels: radarLabels,
                 datasets: [{
                     label: 'Score Ekonomi',
-                    data: {{ radar_values | tojson }},
+                    data: radarValues,
                     backgroundColor: 'rgba(110, 11, 11, 0.2)',
                     borderColor: '#6e0b0b',
                     pointBackgroundColor: '#6e0b0b',
@@ -133,12 +479,57 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: function(context) {
+                                var label = context.label || '';
+                                var score = context.raw || 0;
+                                var text = [];
+                                var level = "";
+                                
+                                if(score > 70) level = "Baik ✅";
+                                else if (score > 40) level = "Sedang 🔶";
+                                else level = "Rendah ⚠️";
+                                
+                                text.push("Status: " + level);
+                                
+                                if (label === 'Stabilitas Simpanan') {
+                                    if (score > 70) text.push("Tabungan rutin & bertumbuh.");
+                                    else if (score > 40) text.push("Tabungan cukup stabil.");
+                                    else text.push("Tabungan tidak konsisten.");
+                                } else if (label === 'Frekuensi Penarikan') {
+                                    if (score > 70) text.push("Jarang menarik dana (keuangan stabil).");
+                                    else if (score > 40) text.push("Penarikan dana dalam batas wajar.");
+                                    else text.push("Sering tarik dana.");
+                                } else if (label === 'Kondisi Ekonomi Makro') {
+                                    if (score > 70) text.push("Kondisi makro mendukung stabilitas koperasi.");
+                                    else if (score > 40) text.push("Kondisi makro cukup stabil.");
+                                    else text.push("Kondisi makro berisiko, perhatikan inflasi/Bi rate.");
+                                } else if (label === 'Aktivitas Transaksi') {
+                                    if (score > 70) text.push("Sangat aktif bertransaksi.");
+                                    else if (score > 40) text.push("Cukup aktif bertransaksi.");
+                                    else text.push("Jarang bertransaksi.");
+                                } else if (label === 'Tekanan Harga Pangan') {
+                                    if (score > 70) text.push("Harga pangan relatif stabil.");
+                                    else if (score > 40) text.push("Harga pangan meningkat moderat.");
+                                    else text.push("Harga pangan naik signifikan.");
+                                } else if (label === 'Risiko Penarikan') {
+                                    if (score > 70) text.push("Risiko penarikan rendah.");
+                                    else if (score > 40) text.push("Risiko penarikan sedang.");
+                                    else text.push("Potensi likuiditas menurun.");
+                                }
+                                return text;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     r: {
-                        angleLines: { color: 'rgba(0, 0, 0, 0.05)' },
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        pointLabels: { color: '#94a3b8', font: { size: 10 } },
+                        angleLines: { color: 'rgba(0,0,0,0.05)' },
+                        grid:       { color: 'rgba(0,0,0,0.05)' },
+                        pointLabels: { color: '#94a3b8', font: { size: 11 } },
                         ticks: { display: false },
                         suggestedMin: 0,
                         suggestedMax: 100
@@ -147,42 +538,6 @@
             }
         });
 
-        // Payroll vs Withdrawal Chart
-        const barCtx = document.getElementById('payrollVsWithdrawalChart').getContext('2d');
-        new Chart(barCtx, {
-            type: 'bar',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
-                datasets: [
-                    {
-                        label: 'Payroll (Gaji)',
-                        data: [800, 850, 820, 900, 950, 1000],
-                        backgroundColor: '#6e0b0b',
-                        borderRadius: 5
-                    },
-                    {
-                        label: 'Withdrawal (Tarik Tunai)',
-                        data: [150, 180, 200, 450, 250, 300],
-                        backgroundColor: '#ef4444',
-                        borderRadius: 5
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: { color: '#94a3b8' }
-                    }
-                },
-                scales: {
-                    y: { grid: { color: 'rgba(0, 0, 0, 0.05)' }, ticks: { color: '#94a3b8' } },
-                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-                }
-            }
-        });
     });
 </script>
 {% endblock %}
