@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1
 # Hugging Face requires port 7860
 EXPOSE 7860
 
-CMD ["gunicorn", "main:app", "--workers", "2", "--bind", "0.0.0.0:7860", "--timeout", "120"]
+CMD ["gunicorn", "main:app", "--workers", "2", "--bind", "0.0.0.0:7860", "--timeout", "120", "--log-level", "debug", "--error-logfile", "-"]
