@@ -83,5 +83,5 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Warning: Gagal mengaktifkan background scheduler: {e}")
 
-    print(">>> Aplikasi SIAP dijalankan!")
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, use_reloader=True)
+    print(">>> Aplikasi SIAP dijalankan pada port 7860!")
+    app.run(host='0.0.0.0', port=7860, debug=False, threaded=True, use_reloader=False)
