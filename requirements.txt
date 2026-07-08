@@ -75,3 +75,4 @@ tzdata
 urllib3
 Werkzeug
 gunicorn
+ultralytics
