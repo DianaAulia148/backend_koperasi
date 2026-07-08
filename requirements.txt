@@ -73,4 +73,4 @@ torchvision
 typing_extensions
 tzdata
 urllib3
-Werkzeug
+Werkzeuggunicorn
