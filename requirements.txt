@@ -76,3 +76,5 @@ urllib3
 Werkzeug
 gunicorn
 ultralytics
+paddleocr
+apscheduler

@@ -18,7 +18,7 @@ class Config:
     DB_NAME = os.getenv('DB_NAME')
     # PENTING: Cek `is not None` bukan `and` agar password kosong ('') tetap valid!
     if DB_USER is not None and DB_HOST is not None and DB_NAME is not None:
-        SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?ssl_mode=REQUIRED"
+        SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     else:
         # SQLite database file located in the project root
         SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
