@@ -15,4 +15,10 @@ jobs:
           fetch-depth: 0
           lfs: true
       - name: Push to hub
-        run: git push --force https://Dyanneey:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Dyanneey/backend-koperasi main
+        run: |
+          git config --global user.email "bot@example.com"
+          git config --global user.name "Bot"
+          git checkout --orphan hf_deploy
+          git add -A
+          git commit -m "Deploy to Hugging Face"
+          git push --force https://Dyanneey:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Dyanneey/backend-koperasi hf_deploy:main
