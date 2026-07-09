@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, send_file, jsonify, current_app
 from models.user_model import db, User, Member, Transaction, MemberRegistration, MobileUser, SavingType, MemberSavingBalance, SavingTransaction, WithdrawalRequest, ActivityLog, OTPVerification, DepositRequest, PayrollBatch
 from flask_mail import Mail, Message
+from utils.email_helper import send_email_api
 from threading import Thread
 import random
 import pandas as pd
@@ -170,12 +171,9 @@ def send_async_email(app, msg):
             print(f"Gagal mengirim email di background: {e}")
 
 def send_actual_email(email, otp):
-    from flask import current_app
     try:
-        msg = Message("Reset Kata Sandi - Kode Verifikasi OTP",
-                      recipients=[email])
-        msg.body = f"""
-Halo,
+        subject = "Reset Kata Sandi - Kode Verifikasi OTP"
+        body = f"""Halo,
 
 Anda telah meminta pengaturan ulang kata sandi untuk akun Co-op Admin Anda.
 Kode verifikasi (OTP) Anda adalah:
@@ -187,15 +185,14 @@ Kode ini hanya berlaku untuk waktu terbatas. Jika Anda tidak merasa melakukan pe
 Terima kasih,
 Tim Sistem Co-op Admin
         """
-        # Kirim secara sinkron untuk menangkap error SMTP segera
-        # Jika ingin tetap async, gunakan thread tapi pastikan kita tahu jika auth gagal
-        mail.send(msg)
-        return True, "Success"
+        success = send_email_api(email, subject, body)
+        if success:
+            return True, "Success"
+        else:
+            return False, "API Email Error: Gagal mengirim pesan ke alamat tersebut."
     except Exception as e:
         error_msg = str(e)
-        print(f"Gagal mengirim email: {error_msg}")
-        if any(code in error_msg for code in ["535", "534", "BadCredentials", "Application-specific password"]):
-            return False, "SMTP Authentication Error: Gmail memerlukan 'App Password' 16-digit. Password biasa Anda tidak akan berfungsi."
+        print(f"Gagal mengirim email via API: {error_msg}")
         return False, f"Email Error: {error_msg}"
 
 @auth_bp.route('/forgot-password/send-otp', methods=['POST'])
@@ -1472,29 +1469,15 @@ def google_register_mobile():
         db.session.add(otp_entry)
         db.session.commit()
 
-        # Kirim Email OTP secara async
-        msg = Message(
-            "Kode Verifikasi Pendaftaran Koperasi",
-            sender=current_app.config['MAIL_USERNAME'],
-            recipients=[email]
-        )
-        msg.body = (
+        # Kirim Email OTP secara async (API Brevo)
+        subject = "Kode Verifikasi Pendaftaran Koperasi"
+        body = (
             f"Halo {name},\n\n"
             f"Kode verifikasi pendaftaran Anda adalah: {otp_code}\n\n"
             f"Kode ini berlaku selama 15 menit.\n\n"
             f"Jika Anda tidak melakukan pendaftaran ini, abaikan email ini."
         )
-
-        app = current_app._get_current_object()
-
-        def send_async_email(app_obj, message):
-            with app_obj.app_context():
-                try:
-                    mail.send(message)
-                except Exception as e:
-                    print(f"Async email error: {e}")
-
-        Thread(target=send_async_email, args=(app, msg)).start()
+        Thread(target=send_email_api, args=(email, subject, body)).start()
 
         return jsonify({
             'success': True,
@@ -1584,22 +1567,10 @@ def mobile_register():
             db.session.add(otp_entry)
             db.session.commit()
 
-            # Kirim Email Async
-            msg = Message("Kode Verifikasi Pendaftaran Koperasi",
-                          sender=current_app.config['MAIL_USERNAME'],
-                          recipients=[email])
-            msg.body = f"Halo {full_name},\n\nKode verifikasi Anda adalah: {otp_code}\n\nKode ini berlaku selama 15 menit."
-            
-            app = current_app._get_current_object()
-            
-            def send_async_email(app_obj, message):
-                with app_obj.app_context():
-                    try:
-                        mail.send(message)
-                    except Exception as e:
-                        print(f"Async email error: {e}")
-                        
-            Thread(target=send_async_email, args=(app, msg)).start()
+            # Kirim Email Async via API
+            subject = "Kode Verifikasi Pendaftaran Koperasi"
+            body = f"Halo {full_name},\n\nKode verifikasi Anda adalah: {otp_code}\n\nKode ini berlaku selama 15 menit."
+            Thread(target=send_email_api, args=(email, subject, body)).start()
 
         return jsonify({
             'success': True, 

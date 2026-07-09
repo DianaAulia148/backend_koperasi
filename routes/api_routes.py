@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from models.user_model import db, MemberRegistration, MobileUser, Member, MemberSavingBalance, SavingTransaction, SavingType, WithdrawalRequest, ActivityLog, OTPVerification, DepositRequest, Notification
 from routes.auth_routes import mail
 from flask_mail import Message
+from utils.email_helper import send_email_api
 import random
 from datetime import datetime, timedelta
 import os
@@ -116,14 +117,11 @@ def mobile_register():
         db.session.add(otp_entry)
         db.session.commit()
 
-        # Kirim Email secara Asynchronous (Background) agar tidak lemot
-        msg = Message("Kode Verifikasi Pendaftaran Koperasi",
-                      sender=current_app.config['MAIL_USERNAME'],
-                      recipients=[email])
-        msg.body = f"Halo {full_name},\n\nKode verifikasi Anda adalah: {otp_code}\n\nKode ini berlaku selama 15 menit. Mohon jangan sebarkan kode ini kepada siapa pun."
+        # Kirim Email menggunakan HTTP API (Brevo) secara Background
+        subject = "Kode Verifikasi Pendaftaran Koperasi"
+        text_content = f"Halo {full_name},\n\nKode verifikasi Anda adalah: {otp_code}\n\nKode ini berlaku selama 15 menit. Mohon jangan sebarkan kode ini kepada siapa pun."
         
-        app = current_app._get_current_object()
-        Thread(target=send_async_email, args=(app, msg)).start()
+        Thread(target=send_email_api, args=(email, subject, text_content)).start()
 
         # Log Activity
         ActivityLog.log(f"New Mobile Registration: {full_name} (Pending Verification)", user_id=None, table_name="mobile_users", reference_id=new_user.id)
