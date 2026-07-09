@@ -1203,7 +1203,8 @@ def login_google():
     mode = request.args.get('mode', 'login')
     session['google_auth_mode'] = mode
     redirect_uri = url_for('auth.authorize_google', _external=True)
-    if redirect_uri.startswith('http://') and 'ngrok-free.dev' in redirect_uri:
+    # Paksa penggunaan HTTPS jika bukan localhost (seperti di ngrok atau Hugging Face)
+    if redirect_uri.startswith('http://') and 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri:
         redirect_uri = redirect_uri.replace('http://', 'https://', 1)
     return oauth.google.authorize_redirect(redirect_uri)
 
