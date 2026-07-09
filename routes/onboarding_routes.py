@@ -247,6 +247,19 @@ def approve_registration(reg_id):
     from routes.auth_routes import parse_ocr_date
     birth_date_val = parse_ocr_date(reg.ocr_birth_date)
     
+    # Check for duplicate NIK or NIP to prevent IntegrityError (500)
+    if reg.ocr_nik:
+        existing_nik = Member.query.filter_by(nik=reg.ocr_nik).first()
+        if existing_nik:
+            flash(f"Gagal menyetujui: NIK {reg.ocr_nik} sudah terdaftar pada anggota lain.", "error")
+            return redirect(request.referrer or url_for('onboarding.registration'))
+            
+    if reg.ocr_nip:
+        existing_nip = Member.query.filter_by(nip=reg.ocr_nip).first()
+        if existing_nip:
+            flash(f"Gagal menyetujui: NIP {reg.ocr_nip} sudah terdaftar pada anggota lain.", "error")
+            return redirect(request.referrer or url_for('onboarding.registration'))
+    
     new_member = Member(
         member_no=member_no,
         nik=reg.ocr_nik,

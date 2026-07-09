@@ -849,6 +849,18 @@ def approve_registration(reg_id):
     elif "LAKI" in gender_final or "/L" in gender_final:
         gender_final = "LAKI LAKI"
     
+    if reg.ocr_nik:
+        existing_nik = Member.query.filter_by(nik=reg.ocr_nik).first()
+        if existing_nik:
+            flash(f"Gagal menyetujui: NIK {reg.ocr_nik} sudah terdaftar pada anggota lain.", "error")
+            return redirect(request.referrer or url_for('auth.registration_list'))
+            
+    if reg.ocr_nip:
+        existing_nip = Member.query.filter_by(nip=reg.ocr_nip).first()
+        if existing_nip:
+            flash(f"Gagal menyetujui: NIP {reg.ocr_nip} sudah terdaftar pada anggota lain.", "error")
+            return redirect(request.referrer or url_for('auth.registration_list'))
+
     # Buat data di tabel Member permanen
     new_member = Member(
         member_no="MBR-" + secrets.token_hex(4).upper(),
