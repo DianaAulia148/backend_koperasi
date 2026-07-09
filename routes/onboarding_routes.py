@@ -251,7 +251,7 @@ def approve_registration(reg_id):
         member_no=member_no,
         nik=reg.ocr_nik,
         nip=reg.ocr_nip,
-        full_name=reg.ocr_name,
+        full_name=reg.ocr_name or (mobile_user.full_name if mobile_user else "Unknown"),
         jabatan=reg.ocr_jabatan,
         birth_date=birth_date_val,
         gender=reg.ocr_gender,
@@ -305,7 +305,8 @@ def approve_registration(reg_id):
     )
     db.session.add(timeline)
     
-    ActivityLog.log(f"Approved Member Registration: {reg.ocr_name}", user_id=session['user_id'], table_name="member_registration", reference_id=reg.id)
+    member_name_log = reg.ocr_name or (mobile_user.full_name if mobile_user else "Unknown")
+    ActivityLog.log(f"Approved Member Registration: {member_name_log}", user_id=session['user_id'], table_name="member_registration", reference_id=reg.id)
     db.session.commit()
     
     flash("Pendaftaran berhasil disetujui. Anggota baru telah ditambahkan.", "success")
@@ -333,7 +334,9 @@ def reject_registration(reg_id):
     )
     db.session.add(timeline)
     
-    ActivityLog.log(f"Rejected Member Registration: {reg.ocr_name}", user_id=session['user_id'], table_name="member_registration", reference_id=reg.id)
+    mobile_user = MobileUser.query.get(reg.mobile_user_id) if reg.mobile_user_id else None
+    member_name_log = reg.ocr_name or (mobile_user.full_name if mobile_user else "Unknown")
+    ActivityLog.log(f"Rejected Member Registration: {member_name_log}", user_id=session['user_id'], table_name="member_registration", reference_id=reg.id)
     db.session.commit()
     
     flash(f"Pendaftaran ditolak: {reason}", "warning")
