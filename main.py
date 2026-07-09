@@ -25,6 +25,10 @@ from flask_mail import Mail
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# Fix for reverse proxy (Hugging Face / Ngrok) to ensure HTTPS is recognized
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 # Aktifkan CORS agar Flutter (HP) bisa mengakses API dari laptop
 CORS(app, resources={r"/*": {"origins": "*"}})  # type: ignore
 
