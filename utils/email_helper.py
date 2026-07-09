@@ -7,7 +7,7 @@ def send_email_api(to_email, subject, text_content, html_content=None):
     Ini lebih aman digunakan di lingkungan Cloud/Hugging Face yang memblokir port SMTP.
     """
     api_key = os.getenv("BREVO_API_KEY")
-    sender_email = os.getenv("MAIL_USERNAME", "koperasisimpanku@gmail.com")
+    sender_email = os.getenv("MAIL_USERNAME", "dianabackup00000@gmail.com")
     sender_name = "Koperasi Simpanku"
 
     if not api_key:
